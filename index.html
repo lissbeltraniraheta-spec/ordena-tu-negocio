@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Ordena tu Negocio</title>
+<meta name="description" content="Ventas, fiados y caja de su negocio, desde la foto del cuaderno o una nota de voz.">
+<meta name="theme-color" content="#0B7A57">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&display=swap">
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ===== Entrar ===== -->
+  <section id="v-auth" class="auth" hidden>
+    <div>
+      <p class="eyebrow">Ordena tu Negocio</p>
+      <h1>Sus ventas, fiados y caja, en orden</h1>
+      <p class="muted">Mande la foto del cuaderno o una nota de voz y quedan anotadas.</p>
+    </div>
+    <form class="panel" id="f-auth">
+      <label for="au-email">Correo
+        <input id="au-email" type="email" autocomplete="email" required>
+      </label>
+      <label for="au-pass">Contraseña
+        <input id="au-pass" type="password" autocomplete="current-password" minlength="6" required>
+      </label>
+      <button class="btn primary" type="submit" id="au-entrar">Entrar</button>
+      <button class="btn" type="button" id="au-crear">Crear cuenta nueva</button>
+      <p class="estado" id="au-st" role="status"></p>
+    </form>
+  </section>
+
+  <!-- ===== Primer negocio ===== -->
+  <section id="v-setup" class="auth" hidden>
+    <div>
+      <p class="eyebrow">Primer paso</p>
+      <h1>¿Cómo se llama el negocio?</h1>
+      <p class="muted">Puede agregar más negocios después.</p>
+    </div>
+    <form class="panel" id="f-negocio">
+      <label for="ng-nombre">Nombre del negocio
+        <input id="ng-nombre" required maxlength="80" placeholder="Ej. Ferretería Hermanos">
+      </label>
+      <label for="ng-caja">Efectivo con que abre la caja cada día (US$)
+        <input id="ng-caja" type="number" min="0" step="0.01" inputmode="decimal" value="0">
+      </label>
+      <button class="btn primary" type="submit">Guardar negocio</button>
+      <button class="btn" type="button" id="ng-cancelar" hidden>Cancelar</button>
+      <p class="estado" id="ng-st" role="status"></p>
+    </form>
+  </section>
+
+  <!-- ===== App ===== -->
+  <div id="v-app" hidden>
+    <header class="top">
+      <div class="biz">
+        <div class="biz-name">
+          <p class="eyebrow">Ordena tu Negocio</p>
+          <label class="vh" for="sel-negocio">Negocio</label>
+          <select id="sel-negocio" class="sel-negocio"></select>
+        </div>
+        <div class="row">
+          <label class="vh" for="sel-fecha">Día</label>
+          <input id="sel-fecha" type="date" class="sel-fecha">
+          <button class="btn small" id="b-salir" type="button">Salir</button>
+        </div>
+      </div>
+    </header>
+
+    <nav class="tabs" aria-label="Secciones">
+      <div class="tabbar">
+        <a href="#hoy" data-view="hoy">Ventas del día</a>
+        <a href="#fiados" data-view="fiados">Fiados</a>
+        <a href="#caja" data-view="caja">Cierre de caja</a>
+        <a href="#archivo" data-view="archivo">Fotos y audios</a>
+        <a href="#expediente" data-view="expediente">Expediente</a>
+      </div>
+    </nav>
+
+    <!-- HOY -->
+    <section class="view" id="v-hoy">
+      <div class="kpis">
+        <div class="kpi main"><span class="eyebrow">Vendido</span><b class="num" id="k-vendido">$0.00</b></div>
+        <div class="kpi"><span class="eyebrow">Al contado</span><b class="num" id="k-contado">$0.00</b></div>
+        <div class="kpi"><span class="eyebrow">Fiado</span><b class="num" id="k-fiado">$0.00</b></div>
+        <div class="kpi"><span class="eyebrow">Abonos</span><b class="num" id="k-abonos">$0.00</b></div>
+      </div>
+
+      <div class="two">
+        <div class="panel">
+          <div>
+            <h3>Foto del cuaderno</h3>
+            <p class="muted">Tome o suba la foto de la página. La IA la lee y usted revisa antes de guardar.</p>
+          </div>
+          <img class="foto-prev" id="foto-prev" alt="Foto que se va a leer" hidden>
+          <div class="row">
+            <label class="btn primary" for="in-foto">Tomar o subir foto</label>
+            <input class="vh" id="in-foto" type="file" accept="image/*">
+          </div>
+          <p class="estado" id="st-foto" role="status"></p>
+        </div>
+
+        <div class="panel">
+          <div>
+            <h3>Nota de voz</h3>
+            <p class="muted">Grabe aquí o suba el audio de WhatsApp. La IA lo escucha y lo convierte en movimientos.</p>
+          </div>
+          <audio id="aud" controls hidden></audio>
+          <div class="row">
+            <button class="btn primary" id="b-grabar" type="button">Grabar audio</button>
+            <label class="btn" for="in-audio">Subir audio</label>
+            <input class="vh" id="in-audio" type="file" accept="audio/*,.opus,.ogg,.m4a,.mp3,.aac,.wav,.amr">
+          </div>
+          <p class="estado" id="st-audio" role="status"></p>
+        </div>
+      </div>
+
+      <div class="panel" id="p-rev" hidden>
+        <div>
+          <p class="ia-tag" id="rev-origen">Leído con IA</p>
+          <h3>Revise antes de guardar</h3>
+          <p class="muted" id="rev-nota"></p>
+          <p class="transcript" id="rev-trans" hidden></p>
+        </div>
+        <div id="rev-list" class="rev-list"></div>
+        <datalist id="dl-clientes"></datalist>
+        <div class="row">
+          <button class="btn primary" id="b-rev-ok" type="button">Guardar en el registro</button>
+          <button class="btn" id="b-rev-no" type="button">Descartar</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="row between">
+          <h3 id="t-movs">Movimientos del día</h3>
+          <span class="muted num" id="n-movs"></span>
+        </div>
+        <ul class="list" id="movs"></ul>
+        <p class="muted vacio" id="movs-vacio" hidden>Todavía no hay nada anotado este día.</p>
+      </div>
+
+      <div class="panel">
+        <h3>Anotar a mano</h3>
+        <form class="add" id="f-add">
+          <label class="full" for="a-desc">Qué se vendió o pagó
+            <input id="a-desc" maxlength="120" placeholder="Ej. Pintura galón blanco" required>
+          </label>
+          <label for="a-tipo">Tipo
+            <select id="a-tipo">
+              <option value="contado">Venta al contado</option>
+              <option value="fiado">Venta fiada</option>
+              <option value="abono">Abono de cliente</option>
+              <option value="gasto">Gasto del negocio</option>
+              <option value="retiro">Retiro del dueño</option>
+            </select>
+          </label>
+          <label for="a-monto">Monto (US$)
+            <input id="a-monto" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0.00" required>
+          </label>
+          <label class="full" for="a-cliente" id="l-cliente" hidden>Cliente
+            <input id="a-cliente" list="dl-clientes" maxlength="80" placeholder="Nombre del cliente">
+          </label>
+          <button class="btn primary full" type="submit">Agregar</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- FIADOS -->
+    <section class="view" id="v-fiados" hidden>
+      <div class="kpis">
+        <div class="kpi main"><span class="eyebrow">Le deben</span><b class="num" id="f-total">$0.00</b></div>
+        <div class="kpi"><span class="eyebrow">Clientes con saldo</span><b class="num" id="f-n">0</b></div>
+        <div class="kpi"><span class="eyebrow">Sin abonar 30+ días</span><b class="num" id="f-30">$0.00</b></div>
+        <div class="kpi"><span class="eyebrow">Abonado este día</span><b class="num" id="f-hoy">$0.00</b></div>
+      </div>
+      <div class="panel">
+        <h3>Libro de fiados</h3>
+        <div id="clientes"></div>
+        <p class="muted vacio" id="cl-vacio" hidden>Aún no hay clientes. Se crean solos al anotar un fiado o un abono.</p>
+      </div>
+      <div class="panel" id="p-msg" hidden>
+        <h3 id="msg-title">Mensaje de cobro</h3>
+        <div class="msg" id="msg"></div>
+        <div class="row">
+          <button class="btn primary" id="b-copiar" type="button">Copiar mensaje</button>
+          <a class="btn" id="b-wa" href="#" target="_blank" rel="noopener">Abrir en WhatsApp</a>
+        </div>
+      </div>
+      <div class="panel">
+        <h3>Agregar cliente</h3>
+        <form class="add" id="f-cliente">
+          <label for="c-nombre">Nombre
+            <input id="c-nombre" maxlength="80" required>
+          </label>
+          <label for="c-tel">WhatsApp (opcional)
+            <input id="c-tel" type="tel" inputmode="tel" maxlength="20" placeholder="7000 0000">
+          </label>
+          <button class="btn primary full" type="submit">Agregar cliente</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- CAJA -->
+    <section class="view" id="v-caja" hidden>
+      <div class="two">
+        <div class="panel">
+          <h3 id="t-caja">Cierre de caja</h3>
+          <table class="cuenta" aria-label="Cuadre de efectivo"><tbody id="cuadre"></tbody></table>
+          <label for="c-real">Efectivo que hay en la gaveta (US$)
+            <input id="c-real" type="number" step="0.01" inputmode="decimal" placeholder="Contar y escribir">
+          </label>
+          <div class="result" id="c-res" hidden></div>
+          <label for="c-inicial">Efectivo con que abre la caja (US$)
+            <input id="c-inicial" type="number" min="0" step="0.01" inputmode="decimal">
+          </label>
+        </div>
+        <div class="panel">
+          <h3 id="t-mes">Resumen del mes</h3>
+          <table class="cuenta" aria-label="Resumen del mes"><tbody id="mes"></tbody></table>
+          <div class="meter" role="img" id="meter" aria-label=""></div>
+          <p class="result" id="m-msg" hidden></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ARCHIVO -->
+    <section class="view" id="v-archivo" hidden>
+      <div class="panel">
+        <h3>Fotos y audios recibidos</h3>
+        <p class="muted">Cada foto y audio queda guardado con lo que la IA leyó, para revisarlo cuando haga falta.</p>
+        <div id="capturas"></div>
+        <p class="muted vacio" id="cap-vacio" hidden>Todavía no hay fotos ni audios.</p>
+      </div>
+    </section>
+
+    <!-- EXPEDIENTE -->
+    <section class="view" id="v-expediente" hidden>
+      <div class="panel">
+        <div>
+          <p class="eyebrow">Expediente para crédito</p>
+          <h2 id="exp-titulo">Últimos 6 meses</h2>
+          <p class="muted">Resumen para presentar a una cooperativa o caja de crédito, tomado del registro diario.</p>
+        </div>
+        <svg class="chart" id="chart" viewBox="0 0 640 260" role="img" aria-label="Ventas por mes"></svg>
+        <div class="stats" id="exp-stats"></div>
+      </div>
+    </section>
+  </div>
+
+  <footer class="pie">Ordena tu Negocio</footer>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="/config.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>

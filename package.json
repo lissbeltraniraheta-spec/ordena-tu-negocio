@@ -1,0 +1,8 @@
+{
+  "name": "ordena-tu-negocio",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Ventas, fiados y caja de negocios pequeños, desde la foto del cuaderno o una nota de voz.",
+  "engines": { "node": ">=20" }
+}
