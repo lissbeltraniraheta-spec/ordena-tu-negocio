@@ -9,8 +9,10 @@ const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3.8-flash";
 // Modelos de respaldo si el principal está saturado o ya no está disponible (separados por coma).
 const GEMINI_RESPALDO = (process.env.GEMINI_MODEL_RESPALDO || "gemini-3.7-flash,gemini-3.5-flash")
   .split(",").map((m) => m.trim()).filter(Boolean);
-const INTENTOS_POR_MODELO = 3;
-const ESPERAS_MS = [2000, 5000]; // espera antes del 2.º y 3.er intento
+const INTENTOS_POR_MODELO = 2;
+const ESPERAS_MS = [2000]; // espera antes del 2.º intento
+const LIMITE_TOTAL_MS = 100000; // tiempo total para la IA (la función tiene 120 s en Vercel)
+const LIMITE_LLAMADA_MS = 40000; // si Google no contesta en este tiempo, se pasa al siguiente intento
 
 const dormir = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -20,18 +22,30 @@ async function llamarGemini(payload, inicio) {
   let ultimo = { status: 0, msg: "" };
   for (const modelo of modelos) {
     for (let intento = 0; intento < INTENTOS_POR_MODELO; intento++) {
-      if (Date.now() - inicio > 45000) break; // dejar margen antes del límite de 60 s de Vercel
-      const gr = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelo)}:generateContent`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-goog-api-key": GEMINI_KEY },
-        body: JSON.stringify(payload),
-      }).catch((e) => ({ ok: false, status: 0, json: async () => ({ error: { message: String(e?.message || e) } }) }));
-      const gj = await gr.json().catch(() => ({}));
+      const restante = LIMITE_TOTAL_MS - (Date.now() - inicio);
+      if (restante < 8000) break; // sin tiempo para otro intento
+      const corte = new AbortController();
+      const reloj = setTimeout(() => corte.abort(), Math.min(LIMITE_LLAMADA_MS, restante));
+      let gr, gj;
+      try {
+        gr = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelo)}:generateContent`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-goog-api-key": GEMINI_KEY },
+          body: JSON.stringify(payload),
+          signal: corte.signal,
+        });
+        gj = await gr.json().catch(() => ({}));
+      } catch (e) {
+        gr = { ok: false, status: 0 };
+        gj = { error: { message: corte.signal.aborted ? "Google tardó demasiado en responder." : String(e?.message || e) } };
+      } finally {
+        clearTimeout(reloj);
+      }
       if (gr.ok) return gj;
       ultimo = { status: gr.status, msg: gj?.error?.message || `Gemini respondió ${gr.status}` };
       // Saturado o falla temporal: esperar y reintentar el mismo modelo
       if ([0, 429, 500, 502, 503, 504].includes(gr.status)) {
-        if (intento < INTENTOS_POR_MODELO - 1) await dormir(ESPERAS_MS[intento] || 5000);
+        if (intento < INTENTOS_POR_MODELO - 1) await dormir(ESPERAS_MS[intento] || 2000);
         continue;
       }
       // Modelo no disponible o retirado: pasar al siguiente

@@ -1,6 +1,6 @@
 {
   "functions": {
-    "api/procesar.js": { "maxDuration": 60 }
+    "api/procesar.js": { "maxDuration": 120 }
   },
   "headers": [
     {
