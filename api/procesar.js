@@ -5,7 +5,46 @@
 const SUPABASE_URL = process.env.SUPABASE_URL || "https://zjqogeateqsgortmswbt.supabase.co";
 const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY || "sb_publishable_6-XSGhoGL2aKdZkxnxOG7Q_1WjLTijN";
 const GEMINI_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3.8-flash";
+// Modelos de respaldo si el principal está saturado o ya no está disponible (separados por coma).
+const GEMINI_RESPALDO = (process.env.GEMINI_MODEL_RESPALDO || "gemini-3.7-flash,gemini-3.5-flash")
+  .split(",").map((m) => m.trim()).filter(Boolean);
+const INTENTOS_POR_MODELO = 3;
+const ESPERAS_MS = [2000, 5000]; // espera antes del 2.º y 3.er intento
+
+const dormir = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Llama a Gemini probando varias veces y, si hace falta, con los modelos de respaldo.
+async function llamarGemini(payload, inicio) {
+  const modelos = [...new Set([GEMINI_MODEL, ...GEMINI_RESPALDO])];
+  let ultimo = { status: 0, msg: "" };
+  for (const modelo of modelos) {
+    for (let intento = 0; intento < INTENTOS_POR_MODELO; intento++) {
+      if (Date.now() - inicio > 45000) break; // dejar margen antes del límite de 60 s de Vercel
+      const gr = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelo)}:generateContent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": GEMINI_KEY },
+        body: JSON.stringify(payload),
+      }).catch((e) => ({ ok: false, status: 0, json: async () => ({ error: { message: String(e?.message || e) } }) }));
+      const gj = await gr.json().catch(() => ({}));
+      if (gr.ok) return gj;
+      ultimo = { status: gr.status, msg: gj?.error?.message || `Gemini respondió ${gr.status}` };
+      // Saturado o falla temporal: esperar y reintentar el mismo modelo
+      if ([0, 429, 500, 502, 503, 504].includes(gr.status)) {
+        if (intento < INTENTOS_POR_MODELO - 1) await dormir(ESPERAS_MS[intento] || 5000);
+        continue;
+      }
+      // Modelo no disponible o retirado: pasar al siguiente
+      if ([400, 403, 404].includes(gr.status) && /model|available|not found|supported/i.test(ultimo.msg)) break;
+      // Otro error (clave mala, archivo inválido…): no tiene caso seguir probando
+      throw new Error(`La IA no pudo leer el archivo: ${ultimo.msg}`);
+    }
+  }
+  if ([429, 500, 502, 503, 504, 0].includes(ultimo.status)) {
+    throw new Error("La IA está muy ocupada en este momento. Espere un minuto e intente de nuevo.");
+  }
+  throw new Error(`La IA no pudo leer el archivo: ${ultimo.msg}`);
+}
 const MAX_BYTES = 15 * 1024 * 1024;
 const TIPOS = ["contado", "fiado", "abono", "gasto", "retiro"];
 
@@ -79,6 +118,7 @@ export default async function handler(req, res) {
   const id = body?.captura_id;
   if (!id || !/^[0-9a-f-]{36}$/i.test(id)) return res.status(400).json({ error: "Falta la captura." });
 
+  const inicio = Date.now();
   try {
     // 1. La captura (solo se encuentra si es de un negocio de esta persona)
     const cr = await fetch(`${SUPABASE_URL}/rest/v1/capturas?id=eq.${id}&select=id,negocio_id,tipo,archivo_path,mime`, { headers: sbHeaders(token) });
@@ -99,23 +139,14 @@ export default async function handler(req, res) {
     const mimeOriginal = (captura.mime || fr.headers.get("content-type") || "").split(";")[0].trim();
     const mime = MIME_GEMINI[mimeOriginal] || mimeOriginal || (captura.tipo === "foto" ? "image/jpeg" : "audio/ogg");
 
-    // 4. Gemini
-    const gr = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_MODEL)}:generateContent`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": GEMINI_KEY },
-      body: JSON.stringify({
-        contents: [{ role: "user", parts: [
-          { text: instrucciones(captura.tipo, clientes) },
-          { inline_data: { mime_type: mime, data: buf.toString("base64") } },
-        ] }],
-        generationConfig: { responseMimeType: "application/json", temperature: 0.1 },
-      }),
-    });
-    const gj = await gr.json().catch(() => ({}));
-    if (!gr.ok) {
-      const msg = gj?.error?.message || `Gemini respondió ${gr.status}`;
-      throw new Error(gr.status === 429 ? "Se alcanzó el límite de uso de Gemini. Intente en un momento." : `La IA no pudo leer el archivo: ${msg}`);
-    }
+    // 4. Gemini (con reintentos y modelos de respaldo)
+    const gj = await llamarGemini({
+      contents: [{ role: "user", parts: [
+        { text: instrucciones(captura.tipo, clientes) },
+        { inline_data: { mime_type: mime, data: buf.toString("base64") } },
+      ] }],
+      generationConfig: { responseMimeType: "application/json", temperature: 0.1 },
+    }, inicio);
     const texto = (gj?.candidates?.[0]?.content?.parts || []).map((p) => p.text || "").join("");
     let crudo;
     try { crudo = JSON.parse(texto); } catch {

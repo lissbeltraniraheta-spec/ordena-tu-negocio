@@ -24,7 +24,8 @@ grabaciones del navegador) se convierten en el celular a WAV de 16 kHz, que Gemi
 | Variable | Obligatoria | Valor |
 | --- | --- | --- |
 | `GEMINI_API_KEY` | Sí | Clave de [Google AI Studio](https://aistudio.google.com/apikey) |
-| `GEMINI_MODEL` | No | Por defecto `gemini-2.5-flash` |
+| `GEMINI_MODEL` | No | Por defecto `gemini-3.8-flash` |
+| `GEMINI_MODEL_RESPALDO` | No | Modelos a probar si el principal está saturado, separados por coma. Por defecto `gemini-3.7-flash,gemini-3.5-flash` |
 | `SUPABASE_URL` | No | Por defecto el proyecto `ordena-tu-negocio` |
 | `SUPABASE_ANON_KEY` | No | Por defecto su clave publishable |
 
