@@ -43,6 +43,7 @@ async function llamarGemini(payload, inicio) {
       }
       if (gr.ok) return gj;
       ultimo = { status: gr.status, msg: gj?.error?.message || `Gemini respondió ${gr.status}` };
+      console.warn(`[gemini] modelo=${modelo} intento=${intento + 1} status=${gr.status} ${ultimo.msg.slice(0, 200)}`);
       // Saturado o falla temporal: esperar y reintentar el mismo modelo
       if ([0, 429, 500, 502, 503, 504].includes(gr.status)) {
         if (intento < INTENTOS_POR_MODELO - 1) await dormir(ESPERAS_MS[intento] || 2000);
