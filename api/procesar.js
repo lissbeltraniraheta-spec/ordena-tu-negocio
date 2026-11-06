@@ -7,7 +7,7 @@ const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY || "sb_publishable_6-XSGhoGL2
 const GEMINI_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3.8-flash";
 // Modelos de respaldo si el principal está saturado o ya no está disponible (separados por coma).
-const GEMINI_RESPALDO = (process.env.GEMINI_MODEL_RESPALDO || "gemini-3.7-flash,gemini-3.5-flash")
+const GEMINI_RESPALDO = (process.env.GEMINI_MODEL_RESPALDO || "gemini-3.7-flash,gemini-3.5-flash,gemini-3.5-flash-lite")
   .split(",").map((m) => m.trim()).filter(Boolean);
 const INTENTOS_POR_MODELO = 2;
 const ESPERAS_MS = [2000]; // espera antes del 2.º intento
@@ -20,6 +20,7 @@ const dormir = (ms) => new Promise((r) => setTimeout(r, ms));
 async function llamarGemini(payload, inicio) {
   const modelos = [...new Set([GEMINI_MODEL, ...GEMINI_RESPALDO])];
   let ultimo = { status: 0, msg: "" };
+  let sinCuota = false;
   for (const modelo of modelos) {
     for (let intento = 0; intento < INTENTOS_POR_MODELO; intento++) {
       const restante = LIMITE_TOTAL_MS - (Date.now() - inicio);
@@ -44,8 +45,10 @@ async function llamarGemini(payload, inicio) {
       if (gr.ok) return gj;
       ultimo = { status: gr.status, msg: gj?.error?.message || `Gemini respondió ${gr.status}` };
       console.warn(`[gemini] modelo=${modelo} intento=${intento + 1} status=${gr.status} ${ultimo.msg.slice(0, 200)}`);
+      // Se acabó la cuota gratis de este modelo: no gastar más intentos, pasar al siguiente
+      if (gr.status === 429) { sinCuota = true; break; }
       // Saturado o falla temporal: esperar y reintentar el mismo modelo
-      if ([0, 429, 500, 502, 503, 504].includes(gr.status)) {
+      if ([0, 500, 502, 503, 504].includes(gr.status)) {
         if (intento < INTENTOS_POR_MODELO - 1) await dormir(ESPERAS_MS[intento] || 2000);
         continue;
       }
@@ -54,6 +57,9 @@ async function llamarGemini(payload, inicio) {
       // Otro error (clave mala, archivo inválido…): no tiene caso seguir probando
       throw new Error(`La IA no pudo leer el archivo: ${ultimo.msg}`);
     }
+  }
+  if (sinCuota && ultimo.status === 429) {
+    throw new Error("Se usó todo el límite gratis de la IA por ahora. Espere unos minutos e intente de nuevo; la foto o el audio queda guardado.");
   }
   if ([429, 500, 502, 503, 504, 0].includes(ultimo.status)) {
     throw new Error("La IA está muy ocupada en este momento. Espere un minuto e intente de nuevo.");
