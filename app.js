@@ -292,7 +292,12 @@ $("b-grabar").addEventListener("click", async () => {
   try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
   catch (e) { setSt("st-audio", "No se dio permiso al micrófono. Actívelo en el navegador o use \"Subir audio\".", "err"); return; }
   const trozos = [];
-  const rec = new MediaRecorder(stream);
+  // Elegir un formato que el navegador sí grabe (el iPhone usa audio/mp4)
+  const formato = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg"]
+    .find((t) => window.MediaRecorder.isTypeSupported?.(t));
+  let rec;
+  try { rec = formato ? new MediaRecorder(stream, { mimeType: formato }) : new MediaRecorder(stream); }
+  catch { rec = new MediaRecorder(stream); }
   const inicio = Date.now();
   const b = $("b-grabar"); b.classList.add("rec");
   const tick = setInterval(() => {
@@ -305,16 +310,26 @@ $("b-grabar").addEventListener("click", async () => {
   setSt("st-audio", "Grabando... hable con calma: qué vendió, a quién y cuánto.");
   rec.ondataavailable = (ev) => { if (ev.data.size) trozos.push(ev.data); };
   rec.onstop = async () => {
+    // Safari a veces entrega el último trozo de audio justo después de detener
+    await new Promise((r) => setTimeout(r, 400));
     clearInterval(tick); stream.getTracks().forEach((t) => t.stop());
     S.grabando = null; b.classList.remove("rec"); b.textContent = "Grabar audio";
     const blob = new Blob(trozos, { type: rec.mimeType || "audio/webm" });
-    if (blob.size < 1000) { setSt("st-audio", "La grabación quedó vacía. Intente de nuevo.", "err"); return; }
+    if (blob.size < 1000) {
+      const corta = Date.now() - inicio < 2500;
+      setSt("st-audio", corta
+        ? "La grabación fue muy corta. Toque \"Grabar audio\", hable y toque \"Detener\" cuando termine."
+        : "No se grabó sonido. Revise que el micrófono tenga permiso o use \"Subir audio\".", "err");
+      return;
+    }
     mostrarAudio(blob);
     setSt("st-audio", "Preparando el audio...");
-    try { await subirYProcesar("audio", await prepararAudio(blob, "grabacion.webm"), "st-audio"); }
+    const ext = /mp4|aac/.test(blob.type) ? "m4a" : /ogg/.test(blob.type) ? "ogg" : "webm";
+    try { await subirYProcesar("audio", await prepararAudio(blob, `grabacion.${ext}`), "st-audio"); }
     catch (e) { setSt("st-audio", e.message, "err"); }
   };
-  rec.start(1000);
+  // Sin "trozos por segundo": en Safari (iPhone) eso a veces deja la grabación vacía
+  rec.start();
 });
 
 /* ---------- Subir y leer con IA ---------- */
