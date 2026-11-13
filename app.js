@@ -67,11 +67,30 @@ $("au-crear").addEventListener("click", async () => {
   setSt("au-st", "Creando la cuenta...");
   const { data, error } = await sb.auth.signUp({ email, password, options: { emailRedirectTo: location.origin } });
   if (error) { setSt("au-st", traducirError(error), "err"); return; }
-  if (!data.session) setSt("au-st", "Listo. Le enviamos un correo para confirmar la cuenta. Ábralo y después entre aquí.", "ok");
+  if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+    setSt("au-st", "Ya existe una cuenta con ese correo. Toque Entrar, o «Olvidé mi contraseña» si no la recuerda.", "err"); return;
+  }
+  if (!data.session) setSt("au-st", "Listo. Le enviamos un correo para confirmar la cuenta. Ábralo y después entre aquí. Si no lo ve, revise Spam o Promociones.", "ok");
 });
+$("au-olvide").addEventListener("click", async () => {
+  const email = $("au-email").value.trim();
+  if (!$("au-email").checkValidity() || !email) { setSt("au-st", "Escriba su correo arriba y vuelva a tocar «Olvidé mi contraseña».", "err"); return; }
+  setSt("au-st", "Enviando...");
+  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin });
+  if (error) { setSt("au-st", traducirError(error), "err"); return; }
+  setSt("au-st", "Si ese correo tiene cuenta, le llegará un enlace para poner una contraseña nueva. Revise también Spam o Promociones.", "ok");
+});
+async function pedirNuevaClave() {
+  const p = prompt("Escriba su nueva contraseña (mínimo 6 caracteres):");
+  if (!p) return;
+  if (p.length < 6) { toast("La contraseña debe tener al menos 6 caracteres."); return pedirNuevaClave(); }
+  const { error } = await sb.auth.updateUser({ password: p });
+  toast(error ? traducirError(error) : "Listo, su contraseña quedó cambiada.");
+}
 $("b-salir").addEventListener("click", async () => { await sb.auth.signOut(); });
 
 sb.auth.onAuthStateChange((evento, session) => {
+  if (evento === "PASSWORD_RECOVERY") setTimeout(pedirNuevaClave, 300);
   const nuevo = session?.user || null;
   if (nuevo?.id === S.user?.id && evento !== "SIGNED_OUT") return;
   S.user = nuevo;
