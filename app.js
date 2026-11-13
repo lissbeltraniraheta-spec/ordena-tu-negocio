@@ -12,7 +12,7 @@ const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const money = (n) => "$" + Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const money0 = (n) => "$" + Math.round(Number(n || 0)).toLocaleString("en-US");
-const TIPOS = { contado: "Contado", fiado: "Fiado", abono: "Abono", gasto: "Gasto", retiro: "Retiro dueño" };
+const TIPOS = { contado: "Contado", fiado: "Al crédito", abono: "Abono", gasto: "Gasto", retiro: "Retiro dueño" };
 const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 const MESES_C = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 const DIAS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
@@ -51,7 +51,7 @@ function traducirError(e) {
   if (/already registered/i.test(m)) return "Ya existe una cuenta con ese correo. Use Entrar.";
   if (/Password should be/i.test(m)) return "La contraseña debe tener al menos 6 caracteres.";
   if (/rate limit/i.test(m)) return "Demasiados intentos. Espere unos minutos.";
-  if (/Failed to fetch|NetworkError/i.test(m)) return "Sin conexión. Revise el internet e intente de nuevo.";
+  if (/Failed to fetch|NetworkError/i.test(m)) return "No se pudo conectar con el servidor. Revise su internet o intente de nuevo en unos minutos.";
   return m || "Algo falló. Intente de nuevo.";
 }
 
@@ -422,7 +422,7 @@ function estadoCliente(c) {
   const d = ref ? diasEntre(ref, hoyLocal()) : 0;
   if (d >= 30) return [`${d} días sin abonar`, "estado-30", d];
   if (d >= 15) return [`${d} días sin abonar`, "estado-15", d];
-  return [c.ultimo_abono ? `Abonó hace ${d} días` : `Fiado hace ${d} días`, "estado-ok", d];
+  return [c.ultimo_abono ? `Abonó hace ${d} días` : `Compró al crédito hace ${d} días`, "estado-ok", d];
 }
 function pintarFiados() {
   const con = S.saldos.filter((c) => Number(c.saldo) > 0);
@@ -489,7 +489,7 @@ async function pintarCaja() {
   const { m: mes } = partes(S.fecha);
   $("t-mes").textContent = "Resumen de " + MESES[mes - 1];
   const entra = m.contado + m.abono, neto = entra - m.gasto;
-  $("mes").innerHTML = [["Ventas (contado + fiado)", m.contado + m.fiado], ["Dinero que entró (contado + abonos)", entra], ["− Gastos del negocio", -m.gasto], ["− Retiros del dueño", -m.retiro]]
+  $("mes").innerHTML = [["Ventas (contado + al crédito)", m.contado + m.fiado], ["Dinero que entró (contado + abonos)", entra], ["− Gastos del negocio", -m.gasto], ["− Retiros del dueño", -m.retiro]]
     .map(([a, b]) => `<tr><td>${a}</td><td>${b < 0 ? "−" + money(-b) : money(b)}</td></tr>`).join("")
     + `<tr class="total"><td>Queda para el negocio</td><td>${money(neto - m.retiro)}</td></tr>`;
   const box = $("m-msg");
@@ -508,7 +508,7 @@ function revisarCaja() {
   r.hidden = false;
   if (Math.abs(d) < 0.01) { r.className = "result ok"; r.textContent = "La caja cuadra exacto."; }
   else if (d > 0) { r.className = "result ok"; r.textContent = `Sobran ${money(d)}. Revise si falta anotar alguna venta.`; }
-  else { r.className = "result bad"; r.textContent = `Faltan ${money(-d)}. Revise fiados, gastos o retiros sin anotar.`; }
+  else { r.className = "result bad"; r.textContent = `Faltan ${money(-d)}. Revise ventas al crédito, gastos o retiros sin anotar.`; }
 }
 $("c-real").addEventListener("input", revisarCaja);
 $("c-inicial").addEventListener("change", async (e) => {
@@ -586,7 +586,7 @@ async function pintarExpediente() {
     ["Ventas en 6 meses", money0(tot.ventas)],
     ["Venta mensual promedio", money0(prom)],
     ["Crecimiento", crec === null ? "—" : (crec >= 0 ? "+" : "") + crec.toFixed(1) + "%"],
-    ["Fiados recuperados", tot.fiado > 0 ? Math.round(Math.min(1, tot.abono / tot.fiado) * 100) + "%" : "—"],
+    ["Créditos recuperados", tot.fiado > 0 ? Math.round(Math.min(1, tot.abono / tot.fiado) * 100) + "%" : "—"],
     ["Gastos del negocio", money0(tot.gasto)],
     ["Retiros del dueño", money0(tot.retiro)],
   ].map(([a, b]) => `<div><span class="eyebrow">${a}</span><b class="num">${b}</b></div>`).join("");

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Ordena tu Negocio</title>
-<meta name="description" content="Ventas, fiados y caja de su negocio, desde la foto del cuaderno o una nota de voz.">
+<meta name="description" content="Ventas, ventas al crédito y caja de su negocio, desde la foto del cuaderno o una nota de voz.">
 <meta name="theme-color" content="#0B7A57">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -18,7 +18,7 @@
   <section id="v-auth" class="auth" hidden>
     <div>
       <p class="eyebrow">Ordena tu Negocio</p>
-      <h1>Sus ventas, fiados y caja, en orden</h1>
+      <h1>Sus ventas, créditos y caja, en orden</h1>
       <p class="muted">Mande la foto del cuaderno o una nota de voz y quedan anotadas.</p>
     </div>
     <form class="panel" id="f-auth">
@@ -74,7 +74,7 @@
     <nav class="tabs" aria-label="Secciones">
       <div class="tabbar">
         <a href="#hoy" data-view="hoy">Ventas del día</a>
-        <a href="#fiados" data-view="fiados">Fiados</a>
+        <a href="#fiados" data-view="fiados">Al crédito</a>
         <a href="#caja" data-view="caja">Cierre de caja</a>
         <a href="#archivo" data-view="archivo">Fotos y audios</a>
         <a href="#expediente" data-view="expediente">Expediente</a>
@@ -86,7 +86,7 @@
       <div class="kpis">
         <div class="kpi main"><span class="eyebrow">Vendido</span><b class="num" id="k-vendido">$0.00</b></div>
         <div class="kpi"><span class="eyebrow">Al contado</span><b class="num" id="k-contado">$0.00</b></div>
-        <div class="kpi"><span class="eyebrow">Fiado</span><b class="num" id="k-fiado">$0.00</b></div>
+        <div class="kpi"><span class="eyebrow">Al crédito</span><b class="num" id="k-fiado">$0.00</b></div>
         <div class="kpi"><span class="eyebrow">Abonos</span><b class="num" id="k-abonos">$0.00</b></div>
       </div>
 
@@ -152,7 +152,7 @@
           <label for="a-tipo">Tipo
             <select id="a-tipo">
               <option value="contado">Venta al contado</option>
-              <option value="fiado">Venta fiada</option>
+              <option value="fiado">Venta al crédito</option>
               <option value="abono">Abono de cliente</option>
               <option value="gasto">Gasto del negocio</option>
               <option value="retiro">Retiro del dueño</option>
@@ -178,9 +178,9 @@
         <div class="kpi"><span class="eyebrow">Abonado este día</span><b class="num" id="f-hoy">$0.00</b></div>
       </div>
       <div class="panel">
-        <h3>Libro de fiados</h3>
+        <h3>Libro de ventas al crédito</h3>
         <div id="clientes"></div>
-        <p class="muted vacio" id="cl-vacio" hidden>Aún no hay clientes. Se crean solos al anotar un fiado o un abono.</p>
+        <p class="muted vacio" id="cl-vacio" hidden>Aún no hay clientes. Se crean solos al anotar una venta al crédito o un abono.</p>
       </div>
       <div class="panel" id="p-msg" hidden>
         <h3 id="msg-title">Mensaje de cobro</h3>
