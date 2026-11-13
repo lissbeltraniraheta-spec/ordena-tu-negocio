@@ -7,12 +7,12 @@ const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY || "sb_publishable_6-XSGhoGL2
 const GEMINI_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3.8-flash";
 // Modelos de respaldo si el principal está saturado o ya no está disponible (separados por coma).
-const GEMINI_RESPALDO = (process.env.GEMINI_MODEL_RESPALDO || "gemini-3.7-flash,gemini-3.5-flash,gemini-3.5-flash-lite")
+const GEMINI_RESPALDO = (process.env.GEMINI_MODEL_RESPALDO || "gemini-3.5-flash,gemini-3.5-flash-lite,gemini-3.7-flash")
   .split(",").map((m) => m.trim()).filter(Boolean);
-const INTENTOS_POR_MODELO = 2;
+const INTENTOS_POR_MODELO = 1; // si un modelo está saturado, mejor pasar rápido al siguiente
 const ESPERAS_MS = [2000]; // espera antes del 2.º intento
 const LIMITE_TOTAL_MS = 100000; // tiempo total para la IA (la función tiene 120 s en Vercel)
-const LIMITE_LLAMADA_MS = 40000; // si Google no contesta en este tiempo, se pasa al siguiente intento
+const LIMITE_LLAMADA_MS = 25000; // si Google no contesta en este tiempo, se pasa al siguiente intento
 
 const dormir = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -21,7 +21,10 @@ async function llamarGemini(payload, inicio) {
   const modelos = [...new Set([GEMINI_MODEL, ...GEMINI_RESPALDO])];
   let ultimo = { status: 0, msg: "" };
   let sinCuota = false;
-  for (const modelo of modelos) {
+  // Se recorren los modelos en rondas mientras quede tiempo: uno saturado se salta y se vuelve a probar después
+  const fila = [];
+  for (let ronda = 0; ronda < 3; ronda++) fila.push(...modelos);
+  for (const modelo of fila) {
     for (let intento = 0; intento < INTENTOS_POR_MODELO; intento++) {
       const restante = LIMITE_TOTAL_MS - (Date.now() - inicio);
       if (restante < 8000) break; // sin tiempo para otro intento

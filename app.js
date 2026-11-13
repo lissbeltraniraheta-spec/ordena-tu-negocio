@@ -364,14 +364,21 @@ async function subirYProcesar(tipo, prep, stId) {
     if (error) throw error;
 
     setSt(stId, tipo === "foto" ? "La IA está leyendo la foto... (10 a 30 segundos)" : "La IA está escuchando el audio... (10 a 30 segundos)");
-    const { data: ses } = await sb.auth.getSession();
-    const r = await fetch("/api/procesar", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${ses.session?.access_token}` },
-      body: JSON.stringify({ captura_id: cap.id }),
-    });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(j.error || "No se pudo leer. Intente de nuevo.");
+    let r, j;
+    for (let vuelta = 1; vuelta <= 3; vuelta++) {
+      const { data: ses } = await sb.auth.getSession();
+      r = await fetch("/api/procesar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${ses.session?.access_token}` },
+        body: JSON.stringify({ captura_id: cap.id }),
+      });
+      j = await r.json().catch(() => ({}));
+      // Si la IA de Google está saturada, se vuelve a intentar solo, sin que la persona tenga que subir de nuevo
+      if (r.ok || vuelta === 3 || !/ocupada|límite|tardó|504|502/i.test(`${j.error || ""} ${r.status}`)) break;
+      setSt(stId, `La IA de Google está muy ocupada. Reintentando (${vuelta + 1} de 3)... no cierre la página.`);
+      await new Promise((ok) => setTimeout(ok, 8000));
+    }
+    if (!r.ok) throw new Error((j.error || "No se pudo leer. Intente de nuevo.") + " Su foto o audio quedó guardado en «Fotos y audios».");
     setSt(stId, "");
     mostrarRevision(j, tipo, cap.id);
   } catch (e) {
