@@ -117,7 +117,6 @@ async function cargarNegocios() {
 }
 function pintarSelectorNegocio() {
   $("sel-negocio").innerHTML = S.negocios.map((n) => `<option value="${n.id}">${esc(n.nombre)}</option>`).join("")
-    + `<option value="__nuevo">+ Agregar otro negocio</option>`
     + `<option value="__admin">Agregar o quitar negocios</option>`;
   $("sel-negocio").value = S.negocio.id;
 }
