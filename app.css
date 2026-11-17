@@ -125,3 +125,4 @@ table.historial th:not(:first-child),table.historial td:not(:first-child){text-a
 .dif-ok{color:var(--accent);font-weight:700}
 .dif-bad{color:var(--bad);font-weight:700}
 .archivo-borrado{font-size:.85rem}
+.cliente-pick{display:grid;gap:10px}

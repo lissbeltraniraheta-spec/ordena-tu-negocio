@@ -163,7 +163,7 @@
         <h3>Anotar a mano</h3>
         <form class="add" id="f-add">
           <label class="full" for="a-desc">Qué se vendió o pagó
-            <input id="a-desc" maxlength="120" placeholder="Ej. Pintura galón blanco" required>
+            <input id="a-desc" maxlength="120" placeholder="Ej. Pintura galón blanco">
           </label>
           <label for="a-tipo">Tipo
             <select id="a-tipo">
@@ -177,9 +177,14 @@
           <label for="a-monto">Monto (US$)
             <input id="a-monto" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0.00" required>
           </label>
-          <label class="full" for="a-cliente" id="l-cliente" hidden>Cliente
-            <input id="a-cliente" list="dl-clientes" maxlength="80" placeholder="Nombre del cliente">
-          </label>
+          <div class="full cliente-pick" id="l-cliente" hidden>
+            <label for="a-cliente-sel">Cliente
+              <select id="a-cliente-sel"></select>
+            </label>
+            <label for="a-cliente" id="l-cliente-nuevo" hidden>Nombre del cliente nuevo
+              <input id="a-cliente" list="dl-clientes" maxlength="80" placeholder="Nombre del cliente">
+            </label>
+          </div>
           <button class="btn primary full" type="submit">Agregar</button>
         </form>
       </div>

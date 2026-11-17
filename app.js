@@ -216,6 +216,26 @@ async function cargarSaldos() {
   if (error) { toast(traducirError(error)); S.saldos = []; return; }
   S.saldos = data || [];
   $("dl-clientes").innerHTML = S.saldos.map((c) => `<option value="${esc(c.nombre)}"></option>`).join("");
+  pintarSelectorCliente();
+}
+// Lista de clientes para "Anotar a mano": en un abono salen primero los que deben, con su saldo
+function pintarSelectorCliente() {
+  const tipo = $("a-tipo").value, sel = $("a-cliente-sel"), antes = sel.value;
+  const porNombre = (a, b) => a.nombre.localeCompare(b.nombre, "es");
+  const deben = S.saldos.filter((c) => Number(c.saldo) > 0).sort(porNombre);
+  const alDia = S.saldos.filter((c) => !(Number(c.saldo) > 0)).sort(porNombre);
+  const opt = (c) => `<option value="${c.id}">${esc(c.nombre)}${Number(c.saldo) > 0 ? " · debe " + money(c.saldo) : ""}</option>`;
+  let html = `<option value="">${S.saldos.length ? "Elija el cliente…" : "Todavía no hay clientes"}</option>`;
+  if (tipo === "abono") {
+    if (deben.length) html += `<optgroup label="Clientes que deben">${deben.map(opt).join("")}</optgroup>`;
+    if (alDia.length) html += `<optgroup label="Clientes al día">${alDia.map(opt).join("")}</optgroup>`;
+  } else {
+    html += S.saldos.slice().sort(porNombre).map(opt).join("");
+  }
+  html += `<option value="__nuevo">+ Cliente nuevo (escribir el nombre)</option>`;
+  sel.innerHTML = html;
+  sel.value = [...sel.options].some((o) => o.value === antes) ? antes : "";
+  $("l-cliente-nuevo").hidden = sel.value !== "__nuevo";
 }
 function totales(lista) {
   const t = { contado: 0, fiado: 0, abono: 0, gasto: 0, retiro: 0 };
@@ -268,20 +288,35 @@ async function resolverCliente(nombre) {
   return data.id;
 }
 
-$("a-tipo").addEventListener("change", () => { const t = $("a-tipo").value; $("l-cliente").hidden = !(t === "fiado" || t === "abono"); });
+$("a-tipo").addEventListener("change", () => {
+  const t = $("a-tipo").value; $("l-cliente").hidden = !(t === "fiado" || t === "abono");
+  $("a-desc").placeholder = t === "abono" ? "Opcional (si lo deja vacío dice «Abono de cliente»)" : "Ej. Pintura galón blanco";
+  pintarSelectorCliente();
+});
+$("a-cliente-sel").addEventListener("change", () => {
+  const nuevo = $("a-cliente-sel").value === "__nuevo";
+  $("l-cliente-nuevo").hidden = !nuevo;
+  if (nuevo) $("a-cliente").focus();
+});
 $("f-add").addEventListener("submit", async (e) => {
   e.preventDefault();
-  const tipo = $("a-tipo").value, monto = Math.round(parseFloat($("a-monto").value) * 100) / 100, descripcion = $("a-desc").value.trim();
-  if (!descripcion || !(monto > 0)) return;
+  const tipo = $("a-tipo").value, monto = Math.round(parseFloat($("a-monto").value) * 100) / 100;
+  const descripcion = $("a-desc").value.trim() || (tipo === "abono" ? "Abono de cliente" : "");
+  if (!descripcion) { toast("Escriba qué se vendió o pagó"); $("a-desc").focus(); return; }
+  if (!(monto > 0)) return;
   try {
     let cliente_id = null;
     if (tipo === "fiado" || tipo === "abono") {
-      if (!$("a-cliente").value.trim()) { toast("Escriba el nombre del cliente"); $("a-cliente").focus(); return; }
-      cliente_id = await resolverCliente($("a-cliente").value);
+      const elegido = $("a-cliente-sel").value;
+      if (!elegido) { toast("Elija el cliente de la lista"); $("a-cliente-sel").focus(); return; }
+      if (elegido === "__nuevo") {
+        if (!$("a-cliente").value.trim()) { toast("Escriba el nombre del cliente nuevo"); $("a-cliente").focus(); return; }
+        cliente_id = await resolverCliente($("a-cliente").value);
+      } else cliente_id = elegido;
     }
     const { error } = await sb.from("movimientos").insert({ negocio_id: S.negocio.id, fecha: S.fecha, tipo, descripcion, monto, cliente_id, origen: "manual" });
     if (error) throw error;
-    $("a-desc").value = ""; $("a-monto").value = ""; $("a-cliente").value = "";
+    $("a-desc").value = ""; $("a-monto").value = ""; $("a-cliente").value = ""; $("a-cliente-sel").value = ""; $("l-cliente-nuevo").hidden = true;
     toast("Anotado: " + TIPOS[tipo] + " " + money(monto));
     await cargarTodo();
   } catch (err) { toast(traducirError(err)); }
