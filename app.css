@@ -27,6 +27,13 @@ p{margin:0}
 .eyebrow{font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700}
 .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .auth{display:grid;gap:16px;max-width:440px;margin:6vh auto 0}
+.auth-intro{display:grid;gap:8px}
+.marca{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.marca-logo{width:52px;height:52px;flex:none;color:var(--accent);filter:drop-shadow(0 4px 10px rgb(11 122 87 / .25))}
+.marca-texto{font-family:var(--display);font-weight:800;font-size:2rem;line-height:1;letter-spacing:-.02em;color:var(--ink)}
+.marca-texto b{color:var(--accent);font-weight:800}
+.auth-lema{font-size:1.35rem;font-weight:600}
+@media (max-width:360px){.marca-texto{font-size:1.7rem}.marca-logo{width:44px;height:44px}}
 .top .biz{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
 .biz-name{display:grid;gap:2px;min-width:0}
 .sel-negocio{font-family:var(--display);font-weight:800;font-size:1.4rem;border:0;background:transparent;padding:0;color:var(--ink);max-width:100%}
