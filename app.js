@@ -40,6 +40,7 @@ const S = { user: null, negocios: [], negocio: null, fecha: hoyLocal(), movs: []
 function mostrarPantalla(nombre) {
   $("v-auth").hidden = nombre !== "auth";
   $("v-setup").hidden = nombre !== "setup";
+  $("v-negocios").hidden = nombre !== "negocios";
   $("v-app").hidden = nombre !== "app";
 }
 
@@ -103,6 +104,7 @@ async function cargarNegocios() {
   const { data, error } = await sb.from("negocios").select("*").order("created_at");
   if (error) { toast(traducirError(error)); return; }
   S.negocios = data || [];
+  if (!S.limpiezaHecha) { S.limpiezaHecha = true; limpiarArchivos(); }
   if (!S.negocios.length) { $("ng-cancelar").hidden = true; mostrarPantalla("setup"); return; }
   const guardado = leerLocal("ordena:negocio");
   S.negocio = S.negocios.find((n) => n.id === guardado) || S.negocios[0];
@@ -115,7 +117,8 @@ async function cargarNegocios() {
 }
 function pintarSelectorNegocio() {
   $("sel-negocio").innerHTML = S.negocios.map((n) => `<option value="${n.id}">${esc(n.nombre)}</option>`).join("")
-    + `<option value="__nuevo">+ Agregar otro negocio</option>`;
+    + `<option value="__nuevo">+ Agregar otro negocio</option>`
+    + `<option value="__admin">Agregar o quitar negocios</option>`;
   $("sel-negocio").value = S.negocio.id;
 }
 $("sel-negocio").addEventListener("change", async (e) => {
@@ -123,12 +126,60 @@ $("sel-negocio").addEventListener("change", async (e) => {
     e.target.value = S.negocio.id;
     $("ng-cancelar").hidden = false; $("f-negocio").reset(); mostrarPantalla("setup"); return;
   }
+  if (e.target.value === "__admin") { e.target.value = S.negocio.id; abrirAdminNegocios(); return; }
   S.negocio = S.negocios.find((n) => n.id === e.target.value);
   guardarLocal("ordena:negocio", S.negocio.id);
   cerrarRevision();
   await cargarTodo(); mostrarTab();
 });
 $("ng-cancelar").addEventListener("click", () => mostrarPantalla("app"));
+
+/* ---------- agregar o quitar negocios ---------- */
+function abrirAdminNegocios() {
+  setSt("adm-st", "");
+  $("lista-negocios").innerHTML = S.negocios.map((n) => `<div class="negocio-fila">
+      <strong>${esc(n.nombre)}</strong>
+      <button class="btn small danger" type="button" data-quitar="${n.id}">Quitar</button>
+    </div>`).join("");
+  mostrarPantalla("negocios");
+}
+$("adm-volver").addEventListener("click", () => mostrarPantalla("app"));
+$("adm-agregar").addEventListener("click", () => { $("ng-cancelar").hidden = false; $("f-negocio").reset(); mostrarPantalla("setup"); });
+$("lista-negocios").addEventListener("click", async (e) => {
+  const b = e.target.closest("[data-quitar]"); if (!b) return;
+  const n = S.negocios.find((x) => x.id === b.dataset.quitar); if (!n) return;
+  const r = prompt(`Se borrará «${n.nombre}» con TODAS sus ventas, clientes, cierres y fotos. Esto no se puede deshacer.\n\nPara confirmar, escriba BORRAR:`);
+  if (r === null) return;
+  if (r.trim().toUpperCase() !== "BORRAR") { setSt("adm-st", "No se borró: debe escribir BORRAR.", "err"); return; }
+  b.disabled = true; setSt("adm-st", "Borrando...");
+  try {
+    // Primero los archivos guardados de ese negocio, después el negocio (lo demás se borra en cadena)
+    const { data: caps } = await sb.from("capturas").select("archivo_path").eq("negocio_id", n.id).eq("archivo_borrado", false);
+    const paths = (caps || []).map((c) => c.archivo_path);
+    for (let i = 0; i < paths.length; i += 100) await sb.storage.from("capturas").remove(paths.slice(i, i + 100));
+    const { error } = await sb.from("negocios").delete().eq("id", n.id);
+    if (error) throw error;
+    S.negocios = S.negocios.filter((x) => x.id !== n.id);
+    toast(`«${n.nombre}» fue quitado`);
+    if (!S.negocios.length) { S.negocio = null; $("ng-cancelar").hidden = true; $("f-negocio").reset(); mostrarPantalla("setup"); return; }
+    if (S.negocio?.id === n.id) { S.negocio = S.negocios[0]; guardarLocal("ordena:negocio", S.negocio.id); await cargarTodo(); }
+    pintarSelectorNegocio();
+    abrirAdminNegocios();
+  } catch (err) { setSt("adm-st", traducirError(err), "err"); b.disabled = false; }
+});
+
+/* ---------- borrar fotos y audios de más de 1 día (lo leído por la IA se queda) ---------- */
+async function limpiarArchivos() {
+  try {
+    const limite = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+    const { data, error } = await sb.from("capturas").select("id,archivo_path")
+      .eq("archivo_borrado", false).lt("created_at", limite).limit(200);
+    if (error || !data?.length) return;
+    const { error: e2 } = await sb.storage.from("capturas").remove(data.map((c) => c.archivo_path));
+    if (e2) return;
+    await sb.from("capturas").update({ archivo_borrado: true }).in("id", data.map((c) => c.id));
+  } catch (e) { /* se intenta otra vez la próxima vez que entre */ }
+}
 $("f-negocio").addEventListener("submit", async (e) => {
   e.preventDefault();
   setSt("ng-st", "Guardando...");
@@ -456,8 +507,15 @@ function pintarFiados() {
   $("f-n").textContent = con.length;
   $("f-30").textContent = money(con.filter((c) => estadoCliente(c)[2] >= 30).reduce((s, c) => s + Number(c.saldo), 0));
   $("f-hoy").textContent = money(totales().abono);
-  const lista = S.saldos.slice().sort((a, b) => Number(b.saldo) - Number(a.saldo));
+  const todos = S.saldos.slice().sort((a, b) => Number(b.saldo) - Number(a.saldo));
+  const sel = $("cl-filtro"), antes = sel.value || "__deben";
+  sel.innerHTML = `<option value="__deben">Todos los que deben (${con.length})</option>`
+    + `<option value="__todos">Todos los clientes (${todos.length})</option>`
+    + con.slice().sort((a, b) => a.nombre.localeCompare(b.nombre, "es")).map((c) => `<option value="${c.id}">${esc(c.nombre)} · ${money(c.saldo)}</option>`).join("");
+  sel.value = [...sel.options].some((o) => o.value === antes) ? antes : "__deben";
+  const lista = sel.value === "__todos" ? todos : sel.value === "__deben" ? todos.filter((c) => Number(c.saldo) > 0) : todos.filter((c) => c.id === sel.value);
   $("cl-vacio").hidden = lista.length > 0;
+  $("cl-vacio").textContent = todos.length ? "Ningún cliente debe en este momento." : "Aún no hay clientes. Se crean solos al anotar una venta al crédito o un abono.";
   $("clientes").innerHTML = lista.map((c) => {
     const [txt, cls] = estadoCliente(c);
     return `<div class="cliente">
@@ -467,6 +525,7 @@ function pintarFiados() {
     </div>`;
   }).join("");
 }
+$("cl-filtro").addEventListener("change", () => { $("p-msg").hidden = true; pintarFiados(); });
 $("clientes").addEventListener("click", (e) => {
   const b = e.target.closest("[data-cobro]"); if (!b) return;
   const c = S.saldos.find((x) => x.id === b.dataset.cobro);
@@ -505,7 +564,13 @@ async function pintarCaja() {
   const filas = [["Efectivo con que se abrió", inicial], ["+ Ventas al contado", t.contado], ["+ Abonos de clientes", t.abono], ["− Gastos del negocio", -t.gasto], ["− Retiros del dueño", -t.retiro]];
   $("cuadre").innerHTML = filas.map(([a, b]) => `<tr><td>${a}</td><td>${b < 0 ? "−" + money(-b) : money(b)}</td></tr>`).join("")
     + `<tr class="total"><td>Debe haber en la gaveta</td><td>${money(esperado)}</td></tr>`;
+  S.cajaT = { inicial, ...t };
+  const { data: guardado } = await sb.from("cierres").select("contado,updated_at").eq("negocio_id", S.negocio.id).eq("fecha", S.fecha).maybeSingle();
+  $("c-real").value = guardado ? Number(guardado.contado) : "";
+  setSt("cierre-st", guardado ? "Este día ya tiene un cierre guardado. Si lo vuelve a guardar, se actualiza." : "", guardado ? "ok" : "");
   revisarCaja();
+  if (!$("h-mes").value) $("h-mes").value = S.fecha.slice(0, 7);
+  pintarHistorial();
 
   const [desde] = rangoMes(S.fecha);
   const { data, error } = await sb.from("resumen_mensual").select("tipo,total").eq("negocio_id", S.negocio.id).eq("mes", desde);
@@ -537,6 +602,37 @@ function revisarCaja() {
   else { r.className = "result bad"; r.textContent = `Faltan ${money(-d)}. Revise ventas al crédito, gastos o retiros sin anotar.`; }
 }
 $("c-real").addEventListener("input", revisarCaja);
+$("b-cierre").addEventListener("click", async () => {
+  const v = parseFloat($("c-real").value);
+  if (isNaN(v) || v < 0) { setSt("cierre-st", "Primero cuente el efectivo y escríbalo en «Efectivo que hay en la gaveta».", "err"); $("c-real").focus(); return; }
+  const t = S.cajaT, b = $("b-cierre"); b.disabled = true;
+  const fila = {
+    negocio_id: S.negocio.id, fecha: S.fecha, efectivo_inicial: t.inicial, ventas_contado: t.contado, abonos: t.abono,
+    gastos: t.gasto, retiros: t.retiro, esperado: Math.round(S.esperado * 100) / 100, contado: Math.round(v * 100) / 100,
+    diferencia: Math.round((v - S.esperado) * 100) / 100, updated_at: new Date().toISOString(),
+  };
+  const { error } = await sb.from("cierres").upsert(fila, { onConflict: "negocio_id,fecha" });
+  b.disabled = false;
+  if (error) { setSt("cierre-st", traducirError(error), "err"); return; }
+  setSt("cierre-st", "Cierre del " + fechaLarga(S.fecha) + " guardado.", "ok");
+  $("h-mes").value = S.fecha.slice(0, 7);
+  pintarHistorial();
+});
+$("h-mes").addEventListener("change", pintarHistorial);
+async function pintarHistorial() {
+  const mes = $("h-mes").value || S.fecha.slice(0, 7);
+  const [desde, hasta] = rangoMes(mes + "-01");
+  const { data, error } = await sb.from("cierres").select("fecha,esperado,contado,diferencia")
+    .eq("negocio_id", S.negocio.id).gte("fecha", desde).lte("fecha", hasta).order("fecha", { ascending: false });
+  if (error) { toast(traducirError(error)); return; }
+  const filas = data || [];
+  $("h-vacio").hidden = filas.length > 0;
+  $("historial").innerHTML = filas.map((c) => {
+    const d = Number(c.diferencia), { d: dia, m } = partes(c.fecha);
+    const dif = Math.abs(d) < 0.01 ? `<span class="dif-ok">Cuadra</span>` : d > 0 ? `<span class="dif-ok">+${money(d)}</span>` : `<span class="dif-bad">−${money(-d)}</span>`;
+    return `<tr><td>${dia} ${MESES_C[m - 1]}</td><td>${money(c.esperado)}</td><td>${money(c.contado)}</td><td>${dif}</td></tr>`;
+  }).join("");
+}
 $("c-inicial").addEventListener("change", async (e) => {
   const v = Math.max(0, Number(e.target.value) || 0);
   const { error } = await sb.from("negocios").update({ efectivo_inicial: v }).eq("id", S.negocio.id);
@@ -546,14 +642,15 @@ $("c-inicial").addEventListener("change", async (e) => {
 
 /* ---------- Fotos y audios guardados ---------- */
 async function pintarArchivo() {
-  const { data, error } = await sb.from("capturas").select("id,tipo,archivo_path,estado,transcripcion,resultado,error,created_at")
+  const { data, error } = await sb.from("capturas").select("id,tipo,archivo_path,archivo_borrado,estado,transcripcion,resultado,error,created_at")
     .eq("negocio_id", S.negocio.id).order("created_at", { ascending: false }).limit(30);
   if (error) { toast(traducirError(error)); return; }
   const caps = data || [];
   $("cap-vacio").hidden = caps.length > 0;
   let urls = {};
-  if (caps.length) {
-    const { data: firm } = await sb.storage.from("capturas").createSignedUrls(caps.map((c) => c.archivo_path), 3600);
+  const vivos = caps.filter((c) => !c.archivo_borrado);
+  if (vivos.length) {
+    const { data: firm } = await sb.storage.from("capturas").createSignedUrls(vivos.map((c) => c.archivo_path), 3600);
     (firm || []).forEach((f) => { if (f.signedUrl) urls[f.path] = f.signedUrl; });
   }
   const fmt = new Intl.DateTimeFormat("es-SV", { timeZone: CFG.zonaHoraria, dateStyle: "medium", timeStyle: "short" });
@@ -561,7 +658,7 @@ async function pintarArchivo() {
     const u = urls[c.archivo_path];
     const n = c.resultado?.lineas?.length || 0;
     const estado = c.estado === "procesada" ? `<span class="chip c-contado">${n} movimientos leídos</span>` : c.estado === "error" ? `<span class="chip c-gasto">No se pudo leer</span>` : `<span class="chip c-fiado">Pendiente</span>`;
-    const medio = !u ? "" : c.tipo === "foto" ? `<a href="${u}" target="_blank" rel="noopener"><img src="${u}" alt="Foto del cuaderno" loading="lazy"></a>` : `<audio controls preload="none" src="${u}"></audio>`;
+    const medio = c.archivo_borrado ? `<p class="muted archivo-borrado">${c.tipo === "foto" ? "La foto" : "El audio"} se borró después de 1 día para liberar espacio.</p>` : !u ? "" : c.tipo === "foto" ? `<a href="${u}" target="_blank" rel="noopener"><img src="${u}" alt="Foto del cuaderno" loading="lazy"></a>` : `<audio controls preload="none" src="${u}"></audio>`;
     return `<div class="captura">
       <div class="row between"><strong>${c.tipo === "foto" ? "Foto del cuaderno" : "Nota de voz"}</strong><span class="muted num">${fmt.format(new Date(c.created_at))}</span></div>
       ${medio}
@@ -573,17 +670,34 @@ async function pintarArchivo() {
 }
 
 /* ---------- Expediente ---------- */
+const ym = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+$("f-exp").addEventListener("submit", (e) => { e.preventDefault(); pintarExpediente(); });
 async function pintarExpediente() {
-  const { y, m } = partes(hoyLocal());
-  const ini = new Date(y, m - 6, 1);
-  const desde = `${ini.getFullYear()}-${String(ini.getMonth() + 1).padStart(2, "0")}-01`;
-  const { data, error } = await sb.from("resumen_mensual").select("mes,tipo,total").eq("negocio_id", S.negocio.id).gte("mes", desde).order("mes");
+  const { y: hy, m: hm } = partes(hoyLocal());
+  if (!$("exp-desde").value || !$("exp-hasta").value) {
+    $("exp-hasta").value = ym(new Date(hy, hm - 1, 1));
+    $("exp-desde").value = ym(new Date(hy, hm - 6, 1));
+  }
+  $("exp-desde").max = $("exp-hasta").max = ym(new Date(hy, hm - 1, 1));
+  const okMes = (v) => /^\d{4}-\d{2}$/.test(v);
+  let a = $("exp-desde").value, b = $("exp-hasta").value;
+  if (!okMes(a) || !okMes(b)) { setSt("exp-st", "Escriba los meses así: 2026-06", "err"); return; }
+  if (a > b) { [a, b] = [b, a]; $("exp-desde").value = a; $("exp-hasta").value = b; }
+  const [ay, am] = a.split("-").map(Number), [by, bm] = b.split("-").map(Number);
+  const n = (by - ay) * 12 + (bm - am) + 1;
+  if (n > 24) { setSt("exp-st", "Elija un período de 24 meses o menos.", "err"); return; }
+  setSt("exp-st", "");
+  const ini = new Date(ay, am - 1, 1), fin = new Date(by, bm - 1, 1);
+  const y = by, m = bm;
+  const desde = `${a}-01`, hastaMes = `${b}-01`;
+  const { data, error } = await sb.from("resumen_mensual").select("mes,tipo,total").eq("negocio_id", S.negocio.id).gte("mes", desde).lte("mes", hastaMes).order("mes");
   if (error) { toast(traducirError(error)); return; }
   const meses = [];
-  for (let i = 0; i < 6; i++) { const d = new Date(ini.getFullYear(), ini.getMonth() + i, 1); meses.push({ key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`, lbl: MESES_C[d.getMonth()], contado: 0, fiado: 0, abono: 0, gasto: 0, retiro: 0 }); }
+  for (let i = 0; i < n; i++) { const d = new Date(ini.getFullYear(), ini.getMonth() + i, 1); meses.push({ key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`, lbl: MESES_C[d.getMonth()], contado: 0, fiado: 0, abono: 0, gasto: 0, retiro: 0 }); }
   (data || []).forEach((r) => { const mm = meses.find((x) => x.key === r.mes); if (mm) mm[r.tipo] = Number(r.total); });
   meses.forEach((x) => (x.ventas = x.contado + x.fiado));
-  $("exp-titulo").textContent = `${S.negocio.nombre} · ${MESES[ini.getMonth()]} a ${MESES[m - 1]} ${y}`;
+  $("exp-titulo").textContent = n === 1 ? `${S.negocio.nombre} · ${MESES[m - 1]} ${y}`
+    : `${S.negocio.nombre} · ${MESES[ini.getMonth()]}${ini.getFullYear() !== y ? " " + ini.getFullYear() : ""} a ${MESES[fin.getMonth()]} ${y}`;
 
   const W = 640, x0 = 56, y0 = 30, base = 220;
   const max = Math.max(1000, ...meses.map((x) => x.ventas)) * 1.15;
@@ -599,8 +713,8 @@ async function pintarExpediente() {
   meses.forEach((x, i) => {
     const cx = x0 + i * bw + bw * 0.2, w = bw * 0.6, last = i === meses.length - 1;
     s += `<rect x="${cx}" y="${yy(x.ventas)}" width="${w}" height="${base - yy(x.ventas)}" rx="3" fill="var(--accent)" fill-opacity="${last ? 1 : 0.45}"><title>${x.lbl}: ${money0(x.ventas)}</title></rect>`;
-    if (x.ventas > 0) s += `<text x="${cx + w / 2}" y="${yy(x.ventas) - 6}" text-anchor="middle" font-size="12" font-weight="700" fill="var(--ink)">${money0(x.ventas)}</text>`;
-    s += `<text x="${cx + w / 2}" y="${base + 18}" text-anchor="middle" font-size="12" fill="var(--muted)">${x.lbl}</text>`;
+    if (x.ventas > 0 && meses.length <= 8) s += `<text x="${cx + w / 2}" y="${yy(x.ventas) - 6}" text-anchor="middle" font-size="12" font-weight="700" fill="var(--ink)">${money0(x.ventas)}</text>`;
+    if (meses.length <= 12 || i % 2 === 0) s += `<text x="${cx + w / 2}" y="${base + 18}" text-anchor="middle" font-size="12" fill="var(--muted)">${x.lbl}</text>`;
   });
   if (prom > 0) s += `<line x1="${x0}" x2="${W - 10}" y1="${yy(prom)}" y2="${yy(prom)}" stroke="var(--ink)" stroke-dasharray="4 4"/><text x="${W - 12}" y="${yy(prom) - 6}" text-anchor="end" font-size="12" fill="var(--ink)">Promedio ${money0(prom)}</text>`;
   $("chart").innerHTML = s;
@@ -609,7 +723,7 @@ async function pintarExpediente() {
   const primero = conVentas[0], ultimo = conVentas[conVentas.length - 1];
   const crec = primero && ultimo && primero !== ultimo && primero.ventas > 0 ? ((ultimo.ventas / primero.ventas - 1) * 100) : null;
   $("exp-stats").innerHTML = [
-    ["Ventas en 6 meses", money0(tot.ventas)],
+    [n === 1 ? "Ventas del mes" : `Ventas en ${n} meses`, money0(tot.ventas)],
     ["Venta mensual promedio", money0(prom)],
     ["Crecimiento", crec === null ? "—" : (crec >= 0 ? "+" : "") + crec.toFixed(1) + "%"],
     ["Créditos recuperados", tot.fiado > 0 ? Math.round(Math.min(1, tot.abono / tot.fiado) * 100) + "%" : "—"],

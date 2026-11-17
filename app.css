@@ -111,3 +111,17 @@ table.cuenta tr.total td{border-top:2px solid var(--ink);font-family:var(--displ
 .pie{font-size:.85rem;color:var(--muted);text-align:center}
 @media (prefers-reduced-motion:no-preference){ul.list li.new{animation:flash 1.6s ease-out}}
 @keyframes flash{from{background:var(--accent-soft)}to{background:transparent}}
+/* Administrar negocios, historial de cierres */
+.negocio-fila{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)}
+.negocio-fila:first-child{border-top:0}
+.btn.danger{color:var(--bad);border-color:var(--bad)}
+label.inline{display:flex;align-items:center;gap:8px;font-weight:700}
+label.inline input{width:auto}
+.tabla-scroll{overflow-x:auto}
+table.historial{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:.95rem}
+table.historial th{text-align:left;font-size:.8rem;color:var(--muted);padding:6px 6px 6px 0;font-weight:700}
+table.historial td{padding:8px 6px 8px 0;border-top:1px solid var(--line);white-space:nowrap}
+table.historial th:not(:first-child),table.historial td:not(:first-child){text-align:right}
+.dif-ok{color:var(--accent);font-weight:700}
+.dif-bad{color:var(--bad);font-weight:700}
+.archivo-borrado{font-size:.85rem}

@@ -55,6 +55,21 @@
     </form>
   </section>
 
+  <!-- ===== Administrar negocios ===== -->
+  <section id="v-negocios" class="auth" hidden>
+    <div>
+      <p class="eyebrow">Sus negocios</p>
+      <h1>Agregar o quitar negocios</h1>
+      <p class="muted">Cada negocio lleva sus propias ventas, clientes y caja.</p>
+    </div>
+    <div class="panel">
+      <div id="lista-negocios"></div>
+      <button class="btn primary" type="button" id="adm-agregar">+ Agregar otro negocio</button>
+      <button class="btn" type="button" id="adm-volver">Volver</button>
+      <p class="estado" id="adm-st" role="status"></p>
+    </div>
+  </section>
+
   <!-- ===== App ===== -->
   <div id="v-app" hidden>
     <header class="top">
@@ -180,6 +195,9 @@
       </div>
       <div class="panel">
         <h3>Libro de ventas al crédito</h3>
+        <label for="cl-filtro">Ver
+          <select id="cl-filtro"></select>
+        </label>
         <div id="clientes"></div>
         <p class="muted vacio" id="cl-vacio" hidden>Aún no hay clientes. Se crean solos al anotar una venta al crédito o un abono.</p>
       </div>
@@ -215,6 +233,8 @@
             <input id="c-real" type="number" step="0.01" inputmode="decimal" placeholder="Contar y escribir">
           </label>
           <div class="result" id="c-res" hidden></div>
+          <button class="btn primary" type="button" id="b-cierre">Guardar cierre del día</button>
+          <p class="estado" id="cierre-st" role="status"></p>
           <label for="c-inicial">Efectivo con que abre la caja (US$)
             <input id="c-inicial" type="number" min="0" step="0.01" inputmode="decimal">
           </label>
@@ -226,13 +246,26 @@
           <p class="result" id="m-msg" hidden></p>
         </div>
       </div>
+      <div class="panel">
+        <div class="row between">
+          <h3>Historial de cierres</h3>
+          <label class="inline" for="h-mes">Mes <input id="h-mes" type="month"></label>
+        </div>
+        <div class="tabla-scroll">
+          <table class="historial" aria-label="Historial de cierres de caja">
+            <thead><tr><th>Día</th><th>Debía haber</th><th>Contado</th><th>Diferencia</th></tr></thead>
+            <tbody id="historial"></tbody>
+          </table>
+        </div>
+        <p class="muted vacio" id="h-vacio" hidden>No hay cierres guardados en este mes.</p>
+      </div>
     </section>
 
     <!-- ARCHIVO -->
     <section class="view" id="v-archivo" hidden>
       <div class="panel">
         <h3>Fotos y audios recibidos</h3>
-        <p class="muted">Cada foto y audio queda guardado con lo que la IA leyó, para revisarlo cuando haga falta.</p>
+        <p class="muted">Para liberar espacio, las fotos y audios se borran solos después de 1 día. Lo que la IA leyó queda guardado aquí.</p>
         <div id="capturas"></div>
         <p class="muted vacio" id="cap-vacio" hidden>Todavía no hay fotos ni audios.</p>
       </div>
@@ -246,6 +279,12 @@
           <h2 id="exp-titulo">Últimos 6 meses</h2>
           <p class="muted">Resumen para presentar a una cooperativa o caja de crédito, tomado del registro diario.</p>
         </div>
+        <form class="add" id="f-exp">
+          <label for="exp-desde">Desde (mes)<input id="exp-desde" type="month" required></label>
+          <label for="exp-hasta">Hasta (mes)<input id="exp-hasta" type="month" required></label>
+          <button class="btn primary full" type="submit">Ver este período</button>
+          <p class="estado full" id="exp-st" role="status"></p>
+        </form>
         <svg class="chart" id="chart" viewBox="0 0 640 260" role="img" aria-label="Ventas por mes"></svg>
         <div class="stats" id="exp-stats"></div>
       </div>
