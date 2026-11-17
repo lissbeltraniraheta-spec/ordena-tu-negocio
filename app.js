@@ -670,37 +670,54 @@ async function pintarArchivo() {
 }
 
 /* ---------- Expediente ---------- */
-const ym = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 $("f-exp").addEventListener("submit", (e) => { e.preventDefault(); pintarExpediente(); });
-async function pintarExpediente() {
-  const { y: hy, m: hm } = partes(hoyLocal());
-  if (!$("exp-desde").value || !$("exp-hasta").value) {
-    $("exp-hasta").value = ym(new Date(hy, hm - 1, 1));
-    $("exp-desde").value = ym(new Date(hy, hm - 6, 1));
+const fISO = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+function fechaCorta(f) { const { y, m, d } = partes(f); return `${d} de ${MESES[m - 1]} de ${y}`; }
+// Trae todos los movimientos del período, de 1000 en 1000 (límite de Supabase por consulta)
+async function movimientosRango(desde, hasta) {
+  const todos = [];
+  for (let i = 0; i < 50; i++) {
+    const { data, error } = await sb.from("movimientos").select("fecha,tipo,monto").eq("negocio_id", S.negocio.id)
+      .gte("fecha", desde).lte("fecha", hasta).order("fecha").order("id").range(i * 1000, i * 1000 + 999);
+    if (error) throw error;
+    todos.push(...(data || []));
+    if (!data || data.length < 1000) break;
   }
-  $("exp-desde").max = $("exp-hasta").max = ym(new Date(hy, hm - 1, 1));
-  const okMes = (v) => /^\d{4}-\d{2}$/.test(v);
+  return todos;
+}
+async function pintarExpediente() {
+  const hoy = hoyLocal(), { y: hy, m: hm } = partes(hoy);
+  if (!$("exp-desde").value || !$("exp-hasta").value) {
+    $("exp-hasta").value = hoy;
+    $("exp-desde").value = fISO(new Date(hy, hm - 6, 1));
+  }
+  $("exp-desde").max = $("exp-hasta").max = hoy;
+  const okF = (v) => /^\d{4}-\d{2}-\d{2}$/.test(v);
   let a = $("exp-desde").value, b = $("exp-hasta").value;
-  if (!okMes(a) || !okMes(b)) { setSt("exp-st", "Escriba los meses así: 2026-06", "err"); return; }
+  if (!okF(a) || !okF(b)) { setSt("exp-st", "Elija las dos fechas en el calendario.", "err"); return; }
   if (a > b) { [a, b] = [b, a]; $("exp-desde").value = a; $("exp-hasta").value = b; }
-  const [ay, am] = a.split("-").map(Number), [by, bm] = b.split("-").map(Number);
-  const n = (by - ay) * 12 + (bm - am) + 1;
-  if (n > 24) { setSt("exp-st", "Elija un período de 24 meses o menos.", "err"); return; }
+  const dias = diasEntre(a, b) + 1;
+  if (dias > 731) { setSt("exp-st", "Elija un período de 2 años o menos.", "err"); return; }
+  setSt("exp-st", "Cargando...");
+  let movs;
+  try { movs = await movimientosRango(a, b); } catch (err) { setSt("exp-st", traducirError(err), "err"); return; }
   setSt("exp-st", "");
-  const ini = new Date(ay, am - 1, 1), fin = new Date(by, bm - 1, 1);
-  const y = by, m = bm;
-  const desde = `${a}-01`, hastaMes = `${b}-01`;
-  const { data, error } = await sb.from("resumen_mensual").select("mes,tipo,total").eq("negocio_id", S.negocio.id).gte("mes", desde).lte("mes", hastaMes).order("mes");
-  if (error) { toast(traducirError(error)); return; }
+  // Hasta 31 días: una barra por día. Más: una barra por mes.
+  const porDia = dias <= 31;
   const meses = [];
-  for (let i = 0; i < n; i++) { const d = new Date(ini.getFullYear(), ini.getMonth() + i, 1); meses.push({ key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`, lbl: MESES_C[d.getMonth()], contado: 0, fiado: 0, abono: 0, gasto: 0, retiro: 0 }); }
-  (data || []).forEach((r) => { const mm = meses.find((x) => x.key === r.mes); if (mm) mm[r.tipo] = Number(r.total); });
+  const pa = partes(a), pb = partes(b);
+  if (porDia) {
+    for (let i = 0; i < dias; i++) { const d = new Date(pa.y, pa.m - 1, pa.d + i); meses.push({ key: fISO(d), lbl: String(d.getDate()), contado: 0, fiado: 0, abono: 0, gasto: 0, retiro: 0 }); }
+  } else {
+    const n = (pb.y - pa.y) * 12 + (pb.m - pa.m) + 1;
+    for (let i = 0; i < n; i++) { const d = new Date(pa.y, pa.m - 1 + i, 1); meses.push({ key: fISO(d).slice(0, 7), lbl: MESES_C[d.getMonth()], contado: 0, fiado: 0, abono: 0, gasto: 0, retiro: 0 }); }
+  }
+  const idx = new Map(meses.map((x) => [x.key, x]));
+  movs.forEach((r) => { const x = idx.get(porDia ? r.fecha : r.fecha.slice(0, 7)); if (x) x[r.tipo] += Number(r.monto); });
   meses.forEach((x) => (x.ventas = x.contado + x.fiado));
-  $("exp-titulo").textContent = n === 1 ? `${S.negocio.nombre} · ${MESES[m - 1]} ${y}`
-    : `${S.negocio.nombre} · ${MESES[ini.getMonth()]}${ini.getFullYear() !== y ? " " + ini.getFullYear() : ""} a ${MESES[fin.getMonth()]} ${y}`;
-
+  $("exp-titulo").textContent = `${S.negocio.nombre} · del ${fechaCorta(a)} al ${fechaCorta(b)}`;
   const W = 640, x0 = 56, y0 = 30, base = 220;
-  const max = Math.max(1000, ...meses.map((x) => x.ventas)) * 1.15;
+  const max = Math.max(porDia ? 50 : 500, ...meses.map((x) => x.ventas)) * 1.15;
   const paso = Math.pow(10, Math.floor(Math.log10(max / 3)));
   const tick = Math.ceil(max / 3 / paso) * paso;
   const bw = (W - x0 - 20) / meses.length, yy = (v) => base - (v / (tick * 3)) * (base - y0);
@@ -714,7 +731,7 @@ async function pintarExpediente() {
     const cx = x0 + i * bw + bw * 0.2, w = bw * 0.6, last = i === meses.length - 1;
     s += `<rect x="${cx}" y="${yy(x.ventas)}" width="${w}" height="${base - yy(x.ventas)}" rx="3" fill="var(--accent)" fill-opacity="${last ? 1 : 0.45}"><title>${x.lbl}: ${money0(x.ventas)}</title></rect>`;
     if (x.ventas > 0 && meses.length <= 8) s += `<text x="${cx + w / 2}" y="${yy(x.ventas) - 6}" text-anchor="middle" font-size="12" font-weight="700" fill="var(--ink)">${money0(x.ventas)}</text>`;
-    if (meses.length <= 12 || i % 2 === 0) s += `<text x="${cx + w / 2}" y="${base + 18}" text-anchor="middle" font-size="12" fill="var(--muted)">${x.lbl}</text>`;
+    if (meses.length <= 12 || i % Math.ceil(meses.length / 12) === 0) s += `<text x="${cx + w / 2}" y="${base + 18}" text-anchor="middle" font-size="12" fill="var(--muted)">${x.lbl}</text>`;
   });
   if (prom > 0) s += `<line x1="${x0}" x2="${W - 10}" y1="${yy(prom)}" y2="${yy(prom)}" stroke="var(--ink)" stroke-dasharray="4 4"/><text x="${W - 12}" y="${yy(prom) - 6}" text-anchor="end" font-size="12" fill="var(--ink)">Promedio ${money0(prom)}</text>`;
   $("chart").innerHTML = s;
@@ -723,8 +740,8 @@ async function pintarExpediente() {
   const primero = conVentas[0], ultimo = conVentas[conVentas.length - 1];
   const crec = primero && ultimo && primero !== ultimo && primero.ventas > 0 ? ((ultimo.ventas / primero.ventas - 1) * 100) : null;
   $("exp-stats").innerHTML = [
-    [n === 1 ? "Ventas del mes" : `Ventas en ${n} meses`, money0(tot.ventas)],
-    ["Venta mensual promedio", money0(prom)],
+    [`Ventas en ${dias} ${dias === 1 ? "día" : "días"}`, money0(tot.ventas)],
+    [porDia ? "Venta diaria promedio" : "Venta mensual promedio", money0(prom)],
     ["Crecimiento", crec === null ? "—" : (crec >= 0 ? "+" : "") + crec.toFixed(1) + "%"],
     ["Créditos recuperados", tot.fiado > 0 ? Math.round(Math.min(1, tot.abono / tot.fiado) * 100) + "%" : "—"],
     ["Gastos del negocio", money0(tot.gasto)],
