@@ -198,6 +198,7 @@ $("f-negocio").addEventListener("submit", async (e) => {
 $("sel-fecha").addEventListener("change", async (e) => {
   if (!e.target.value) { e.target.value = S.fecha; return; }
   S.fecha = e.target.value;
+  S.caja = null; // el cierre vuelve a ser del día elegido
   await cargarTodo(); mostrarTab();
 });
 
@@ -588,27 +589,81 @@ $("f-cliente").addEventListener("submit", async (e) => {
   await cargarSaldos(); pintarFiados();
 });
 
-/* ---------- Cierre de caja ---------- */
+/* ---------- Cierre de caja (un día o varios días) ---------- */
+const MAX_DIAS_CIERRE = 62;
+function textoRango(desde, hasta) {
+  if (desde === hasta) return fechaLarga(hasta);
+  const a = partes(desde), b = partes(hasta);
+  return a.y === b.y && a.m === b.m ? `del ${a.d} al ${b.d} de ${MESES[b.m - 1]}` : `del ${a.d} de ${MESES[a.m - 1]} al ${b.d} de ${MESES[b.m - 1]}`;
+}
+function rangoCorto(desde, hasta) {
+  const a = partes(desde), b = partes(hasta);
+  if (!desde || desde === hasta) return `${b.d} ${MESES_C[b.m - 1]}`;
+  return a.m === b.m ? `${a.d}–${b.d} ${MESES_C[b.m - 1]}` : `${a.d} ${MESES_C[a.m - 1]}–${b.d} ${MESES_C[b.m - 1]}`;
+}
+function cambioRango(e) {
+  let desde = $("c-desde").value, hasta = $("c-hasta").value;
+  if (!desde || !hasta) { $("c-desde").value = S.caja.desde; $("c-hasta").value = S.caja.hasta; return; }
+  if (desde > hasta) { if (e.target.id === "c-desde") hasta = desde; else desde = hasta; }
+  if (diasEntre(desde, hasta) + 1 > MAX_DIAS_CIERRE) {
+    toast(`Puede cerrar hasta ${MAX_DIAS_CIERRE} días juntos.`);
+    $("c-desde").value = S.caja.desde; $("c-hasta").value = S.caja.hasta; return;
+  }
+  S.caja = { desde, hasta };
+  pintarCaja();
+}
+$("c-desde").addEventListener("change", cambioRango);
+$("c-hasta").addEventListener("change", cambioRango);
+async function movsDelRango(desde, hasta) {
+  if (desde === S.fecha && hasta === S.fecha) return S.movs;
+  const { data, error } = await sb.from("movimientos").select("tipo,monto")
+    .eq("negocio_id", S.negocio.id).gte("fecha", desde).lte("fecha", hasta);
+  if (error) { toast(traducirError(error)); return null; }
+  return data || [];
+}
 async function pintarCaja() {
-  const t = totales();
+  if (!S.caja) S.caja = { desde: S.fecha, hasta: S.fecha };
+  const { desde, hasta } = S.caja, varios = desde !== hasta;
+  $("c-desde").value = desde; $("c-hasta").value = hasta;
+  $("c-desde").max = $("c-hasta").max = hoyLocal();
+  const lista = await movsDelRango(desde, hasta);
+  if (!lista) return;
+  const t = totales(lista);
   const inicial = Number(S.negocio.efectivo_inicial || 0);
   const esperado = inicial + t.contado + t.abono - t.gasto - t.retiro;
   S.esperado = esperado;
-  $("t-caja").textContent = "Cierre de caja · " + fechaLarga(S.fecha);
+  $("t-caja").textContent = "Cierre de caja · " + textoRango(desde, hasta);
+  $("b-cierre").textContent = varios ? `Guardar cierre de ${diasEntre(desde, hasta) + 1} días` : "Guardar cierre del día";
   $("c-inicial").value = inicial;
   const filas = [["Efectivo con que se abrió", inicial], ["+ Ventas al contado", t.contado], ["+ Abonos de clientes", t.abono], ["− Gastos del negocio", -t.gasto], ["− Retiros del dueño", -t.retiro]];
   $("cuadre").innerHTML = filas.map(([a, b]) => `<tr><td>${a}</td><td>${b < 0 ? "−" + money(-b) : money(b)}</td></tr>`).join("")
     + `<tr class="total"><td>Debe haber en la gaveta</td><td>${money(esperado)}</td></tr>`;
-  S.cajaT = { inicial, ...t };
-  const { data: guardado } = await sb.from("cierres").select("contado,updated_at").eq("negocio_id", S.negocio.id).eq("fecha", S.fecha).maybeSingle();
-  $("c-real").value = guardado ? Number(guardado.contado) : "";
-  setSt("cierre-st", guardado ? "Este día ya tiene un cierre guardado. Si lo vuelve a guardar, se actualiza." : "", guardado ? "ok" : "");
+  S.cajaT = { inicial, ...t, desde, hasta };
+  // Cierres ya guardados que tocan estas fechas
+  const { data: cruzan } = await sb.from("cierres").select("fecha,fecha_desde,contado")
+    .eq("negocio_id", S.negocio.id).gte("fecha", desde)
+    .or(`fecha_desde.lte.${hasta},and(fecha_desde.is.null,fecha.lte.${hasta})`).order("fecha");
+  const desdeDe = (c) => c.fecha_desde || c.fecha;
+  const igual = (cruzan || []).find((c) => c.fecha === hasta && desdeDe(c) === desde);
+  const otros = (cruzan || []).filter((c) => c !== igual);
+  $("c-real").value = igual ? Number(igual.contado) : "";
+  setSt("cierre-st", igual ? (varios ? "Estas fechas ya tienen un cierre guardado." : "Este día ya tiene un cierre guardado.") + " Si lo vuelve a guardar, se actualiza." : "", igual ? "ok" : "");
+  const nota = $("c-rango-nota");
+  const reemplaza = otros.find((c) => c.fecha === hasta);
+  if (otros.length) {
+    nota.hidden = false;
+    nota.textContent = "Ojo: ya hay cierres guardados en estas fechas (" + otros.map((c) => rangoCorto(c.fecha_desde, c.fecha)).join(", ") + ")."
+      + (reemplaza ? ` Al guardar, este cierre reemplaza el del ${rangoCorto(reemplaza.fecha_desde, reemplaza.fecha)}.` : "");
+  } else if (varios) {
+    nota.hidden = false;
+    nota.textContent = "Se suman todos los movimientos de esos días. Escriba el efectivo que hay en la gaveta al final del último día.";
+  } else nota.hidden = true;
   revisarCaja();
   if (!$("h-mes").value) $("h-mes").value = S.fecha.slice(0, 7);
   pintarHistorial();
 
-  const [desde] = rangoMes(S.fecha);
-  const { data, error } = await sb.from("resumen_mensual").select("tipo,total").eq("negocio_id", S.negocio.id).eq("mes", desde);
+  const [inicioMes] = rangoMes(S.fecha);
+  const { data, error } = await sb.from("resumen_mensual").select("tipo,total").eq("negocio_id", S.negocio.id).eq("mes", inicioMes);
   if (error) { toast(traducirError(error)); return; }
   const m = { contado: 0, fiado: 0, abono: 0, gasto: 0, retiro: 0 };
   (data || []).forEach((r) => { m[r.tipo] = Number(r.total); });
@@ -642,30 +697,30 @@ $("b-cierre").addEventListener("click", async () => {
   if (isNaN(v) || v < 0) { setSt("cierre-st", "Primero cuente el efectivo y escríbalo en «Efectivo que hay en la gaveta».", "err"); $("c-real").focus(); return; }
   const t = S.cajaT, b = $("b-cierre"); b.disabled = true;
   const fila = {
-    negocio_id: S.negocio.id, fecha: S.fecha, efectivo_inicial: t.inicial, ventas_contado: t.contado, abonos: t.abono,
+    negocio_id: S.negocio.id, fecha: t.hasta, fecha_desde: t.desde === t.hasta ? null : t.desde, efectivo_inicial: t.inicial, ventas_contado: t.contado, abonos: t.abono,
     gastos: t.gasto, retiros: t.retiro, esperado: Math.round(S.esperado * 100) / 100, contado: Math.round(v * 100) / 100,
     diferencia: Math.round((v - S.esperado) * 100) / 100, updated_at: new Date().toISOString(),
   };
   const { error } = await sb.from("cierres").upsert(fila, { onConflict: "negocio_id,fecha" });
   b.disabled = false;
   if (error) { setSt("cierre-st", traducirError(error), "err"); return; }
-  setSt("cierre-st", "Cierre del " + fechaLarga(S.fecha) + " guardado.", "ok");
-  $("h-mes").value = S.fecha.slice(0, 7);
-  pintarHistorial();
+  setSt("cierre-st", "Cierre " + (t.desde === t.hasta ? "del " : "") + textoRango(t.desde, t.hasta) + " guardado.", "ok");
+  $("h-mes").value = t.hasta.slice(0, 7);
+  pintarCaja();
 });
 $("h-mes").addEventListener("change", pintarHistorial);
 async function pintarHistorial() {
   const mes = $("h-mes").value || S.fecha.slice(0, 7);
   const [desde, hasta] = rangoMes(mes + "-01");
-  const { data, error } = await sb.from("cierres").select("fecha,esperado,contado,diferencia")
+  const { data, error } = await sb.from("cierres").select("fecha,fecha_desde,esperado,contado,diferencia")
     .eq("negocio_id", S.negocio.id).gte("fecha", desde).lte("fecha", hasta).order("fecha", { ascending: false });
   if (error) { toast(traducirError(error)); return; }
   const filas = data || [];
   $("h-vacio").hidden = filas.length > 0;
   $("historial").innerHTML = filas.map((c) => {
-    const d = Number(c.diferencia), { d: dia, m } = partes(c.fecha);
+    const d = Number(c.diferencia);
     const dif = Math.abs(d) < 0.01 ? `<span class="dif-ok">Cuadra</span>` : d > 0 ? `<span class="dif-ok">+${money(d)}</span>` : `<span class="dif-bad">−${money(-d)}</span>`;
-    return `<tr><td>${dia} ${MESES_C[m - 1]}</td><td>${money(c.esperado)}</td><td>${money(c.contado)}</td><td>${dif}</td></tr>`;
+    return `<tr><td>${rangoCorto(c.fecha_desde, c.fecha)}</td><td>${money(c.esperado)}</td><td>${money(c.contado)}</td><td>${dif}</td></tr>`;
   }).join("");
 }
 $("c-inicial").addEventListener("change", async (e) => {
