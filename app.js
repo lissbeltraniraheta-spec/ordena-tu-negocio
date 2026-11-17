@@ -34,6 +34,7 @@ function leerLocal(k) { try { return localStorage.getItem(k); } catch (e) { retu
 function uuid() { return (crypto.randomUUID ? crypto.randomUUID() : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => { const r = (Math.random() * 16) | 0; return (c === "x" ? r : (r & 0x3) | 0x8).toString(16); })); }
 
 /* ---------- estado ---------- */
+const MAX_NEGOCIOS = 5;
 const S = { user: null, negocios: [], negocio: null, fecha: hoyLocal(), movs: [], saldos: [], pendientes: null, grabando: null };
 
 /* ---------- vistas principales ---------- */
@@ -52,6 +53,7 @@ function traducirError(e) {
   if (/already registered/i.test(m)) return "Ya existe una cuenta con ese correo. Use Entrar.";
   if (/Password should be/i.test(m)) return "La contraseña debe tener al menos 6 caracteres.";
   if (/rate limit/i.test(m)) return "Demasiados intentos. Espere unos minutos.";
+  if (/LIMITE_NEGOCIOS/.test(m)) return `Solo se permiten ${MAX_NEGOCIOS} negocios por cuenta. Quite uno para agregar otro.`;
   if (/Failed to fetch|NetworkError/i.test(m)) return "No se pudo conectar con el servidor. Revise su internet o intente de nuevo en unos minutos.";
   return m || "Algo falló. Intente de nuevo.";
 }
@@ -140,10 +142,16 @@ function abrirAdminNegocios() {
       <strong>${esc(n.nombre)}</strong>
       <button class="btn small danger" type="button" data-quitar="${n.id}">Quitar</button>
     </div>`).join("");
+  const lleno = S.negocios.length >= MAX_NEGOCIOS;
+  $("adm-agregar").hidden = lleno;
+  $("adm-limite").textContent = lleno
+    ? `Ya tiene ${MAX_NEGOCIOS} negocios, que es el máximo por cuenta. Para agregar otro, quite uno.`
+    : `Tiene ${S.negocios.length} de ${MAX_NEGOCIOS} negocios permitidos.`;
   mostrarPantalla("negocios");
 }
 $("adm-volver").addEventListener("click", () => mostrarPantalla("app"));
-$("adm-agregar").addEventListener("click", () => { $("ng-cancelar").hidden = false; $("f-negocio").reset(); mostrarPantalla("setup"); });
+$("adm-agregar").addEventListener("click", () => {
+  if (S.negocios.length >= MAX_NEGOCIOS) { setSt("adm-st", `Solo se permiten ${MAX_NEGOCIOS} negocios por cuenta.`, "err"); return; } $("ng-cancelar").hidden = false; $("f-negocio").reset(); mostrarPantalla("setup"); });
 $("lista-negocios").addEventListener("click", async (e) => {
   const b = e.target.closest("[data-quitar]"); if (!b) return;
   const n = S.negocios.find((x) => x.id === b.dataset.quitar); if (!n) return;
