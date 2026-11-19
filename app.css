@@ -140,3 +140,12 @@ tr.sin-cierre td{color:var(--muted)}
 table.historial{font-size:.85rem}
 table.historial th,table.historial td{padding-right:4px}
 table.historial td[colspan]{white-space:normal;text-align:left}
+
+/* Expediente: elegir el tipo de gráfico */
+.modelos{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:14px 0 8px}
+.modelos button{display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 4px;border:1.5px solid var(--line);border-radius:12px;background:var(--surface);color:var(--muted);font:inherit;font-size:.8rem;font-weight:700;cursor:pointer;line-height:1.15}
+.modelos button svg{width:28px;height:28px;fill:currentColor;stroke:currentColor}
+.modelos button svg rect{stroke:none}
+.modelos button[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+.modelos button[aria-pressed="true"] svg .rojo{fill:var(--bad)}
+.exp-explica{font-size:.85rem;margin:4px 0 12px}

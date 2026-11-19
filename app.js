@@ -918,6 +918,72 @@ async function movimientosRango(desde, hasta) {
   }
   return todos;
 }
+// Tres modelos de gráfico para el expediente
+let EXP = null;
+const MODELOS_GRAF = { barras: "Ventas en barras", linea: "Cómo van las ventas", comparar: "Ventas y gastos" };
+let modeloGraf = MODELOS_GRAF[leerLocal("ordena:grafico-exp")] ? leerLocal("ordena:grafico-exp") : "barras";
+document.querySelectorAll("#exp-modelos button").forEach((btn) => btn.addEventListener("click", () => {
+  modeloGraf = btn.dataset.modelo; guardarLocal("ordena:grafico-exp", modeloGraf); dibujarGrafico();
+}));
+function dibujarGrafico() {
+  document.querySelectorAll("#exp-modelos button").forEach((btn) => btn.setAttribute("aria-pressed", String(btn.dataset.modelo === modeloGraf)));
+  if (!EXP) return;
+  const { meses, porDia, prom } = EXP, comparar = modeloGraf === "comparar";
+  meses.forEach((x) => (x.salidas = x.gasto + x.retiro));
+  const W = 640, x0 = 56, y0 = 30, base = 220;
+  const max = Math.max(porDia ? 50 : 500, ...meses.map((x) => comparar ? Math.max(x.ventas, x.salidas) : x.ventas)) * 1.15;
+  const paso = Math.pow(10, Math.floor(Math.log10(max / 3)));
+  const tick = Math.ceil(max / 3 / paso) * paso;
+  const bw = (W - x0 - 20) / meses.length, yy = (v) => base - (v / (tick * 3)) * (base - y0);
+  const centro = (i) => x0 + i * bw + bw / 2;
+  const etiquetas = meses.length <= 8;
+  let s = "";
+  for (let v = 0; v <= tick * 3; v += tick) {
+    s += `<line x1="${x0}" x2="${W - 10}" y1="${yy(v)}" y2="${yy(v)}" stroke="var(--line)"/><text x="${x0 - 8}" y="${yy(v) + 4}" text-anchor="end" font-size="12" fill="var(--muted)">${money0(v)}</text>`;
+  }
+  meses.forEach((x, i) => {
+    if (meses.length <= 12 || i % Math.ceil(meses.length / 12) === 0) s += `<text x="${centro(i)}" y="${base + 18}" text-anchor="middle" font-size="12" fill="var(--muted)">${x.lbl}</text>`;
+  });
+  const valor = (cx, y, v, color) => `<text x="${cx}" y="${y - 6}" text-anchor="middle" font-size="12" font-weight="700" fill="${color}">${money0(v)}</text>`;
+  if (modeloGraf === "barras") {
+    meses.forEach((x, i) => {
+      const w = bw * 0.6, cx = centro(i) - w / 2, last = i === meses.length - 1;
+      s += `<rect x="${cx}" y="${yy(x.ventas)}" width="${w}" height="${base - yy(x.ventas)}" rx="3" fill="var(--accent)" fill-opacity="${last ? 1 : 0.45}"><title>${x.lbl}: ${money0(x.ventas)}</title></rect>`;
+      if (x.ventas > 0 && etiquetas) s += valor(centro(i), yy(x.ventas), x.ventas, "var(--ink)");
+    });
+    // La etiqueta del promedio va arriba, como leyenda, para no taparse con el valor de las barras
+    if (prom > 0) s += `<line x1="${x0}" x2="${W - 10}" y1="${yy(prom)}" y2="${yy(prom)}" stroke="var(--ink)" stroke-dasharray="4 4"/><line x1="${x0}" x2="${x0 + 22}" y1="12" y2="12" stroke="var(--ink)" stroke-dasharray="4 4"/><text x="${x0 + 28}" y="16" font-size="12" fill="var(--ink)">Promedio ${money0(prom)}</text>`;
+  } else if (modeloGraf === "linea") {
+    const pts = meses.map((x, i) => [centro(i), yy(x.ventas)]);
+    const linea = pts.map((p) => p.join(",")).join(" ");
+    s += `<polygon points="${pts[0][0]},${base} ${linea} ${pts[pts.length - 1][0]},${base}" fill="var(--accent)" fill-opacity="0.15"/>`;
+    s += `<polyline points="${linea}" fill="none" stroke="var(--accent)" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>`;
+    meses.forEach((x, i) => {
+      if (meses.length <= 31) s += `<circle cx="${pts[i][0]}" cy="${pts[i][1]}" r="${meses.length > 12 ? 3 : 5}" fill="var(--surface)" stroke="var(--accent)" stroke-width="2.5"><title>${x.lbl}: ${money0(x.ventas)}</title></circle>`;
+      if (x.ventas > 0 && etiquetas) s += valor(pts[i][0], pts[i][1] - 2, x.ventas, "var(--ink)");
+    });
+  } else {
+    meses.forEach((x, i) => {
+      const w = bw * 0.36, c = centro(i);
+      s += `<rect x="${c - w}" y="${yy(x.ventas)}" width="${w}" height="${base - yy(x.ventas)}" rx="2" fill="var(--accent)"><title>${x.lbl} · ventas: ${money0(x.ventas)}</title></rect>`;
+      s += `<rect x="${c}" y="${yy(x.salidas)}" width="${w}" height="${base - yy(x.salidas)}" rx="2" fill="var(--bad)"><title>${x.lbl} · gastos y retiros: ${money0(x.salidas)}</title></rect>`;
+      if (etiquetas && meses.length <= 6) {
+        if (x.ventas > 0) s += valor(c - w / 2, yy(x.ventas), x.ventas, "var(--accent)");
+        if (x.salidas > 0) s += valor(c + w / 2, yy(x.salidas), x.salidas, "var(--bad)");
+      }
+    });
+    s += `<rect x="${x0}" y="6" width="12" height="12" rx="2" fill="var(--accent)"/><text x="${x0 + 18}" y="16" font-size="12" fill="var(--ink)">Ventas</text>`;
+    s += `<rect x="${x0 + 90}" y="6" width="12" height="12" rx="2" fill="var(--bad)"/><text x="${x0 + 108}" y="16" font-size="12" fill="var(--ink)">Gastos y retiros</text>`;
+  }
+  $("chart").innerHTML = s;
+  $("chart").setAttribute("aria-label", MODELOS_GRAF[modeloGraf] + (porDia ? " por día" : " por mes"));
+  const tv = meses.reduce((a, x) => a + x.ventas, 0), ts = meses.reduce((a, x) => a + x.salidas, 0);
+  const txt = modeloGraf === "comparar"
+    ? (tv - ts >= 0 ? `En este período vendió ${money(tv)} y salieron ${money(ts)} en gastos y retiros. Le quedaron ${money(tv - ts)}.` : `En este período salió más dinero (${money(ts)}) del que vendió (${money(tv)}).`)
+    : modeloGraf === "linea" ? "La línea muestra si sus ventas suben o bajan con el tiempo."
+    : `Cada barra es lo que vendió ${porDia ? "ese día" : "ese mes"}. La línea punteada es su promedio.`;
+  $("exp-explica").textContent = txt;
+}
 async function pintarExpediente() {
   const hoy = hoyLocal(), { y: hy, m: hm } = partes(hoy);
   if (!$("exp-desde").value || !$("exp-hasta").value) {
@@ -949,25 +1015,10 @@ async function pintarExpediente() {
   movs.forEach((r) => { const x = idx.get(porDia ? r.fecha : r.fecha.slice(0, 7)); if (x) x[r.tipo] += Number(r.monto); });
   meses.forEach((x) => (x.ventas = x.contado + x.fiado));
   $("exp-titulo").textContent = `${S.negocio.nombre} · del ${fechaCorta(a)} al ${fechaCorta(b)}`;
-  const W = 640, x0 = 56, y0 = 30, base = 220;
-  const max = Math.max(porDia ? 50 : 500, ...meses.map((x) => x.ventas)) * 1.15;
-  const paso = Math.pow(10, Math.floor(Math.log10(max / 3)));
-  const tick = Math.ceil(max / 3 / paso) * paso;
-  const bw = (W - x0 - 20) / meses.length, yy = (v) => base - (v / (tick * 3)) * (base - y0);
-  let s = "";
-  for (let v = 0; v <= tick * 3; v += tick) {
-    s += `<line x1="${x0}" x2="${W - 10}" y1="${yy(v)}" y2="${yy(v)}" stroke="var(--line)"/><text x="${x0 - 8}" y="${yy(v) + 4}" text-anchor="end" font-size="12" fill="var(--muted)">${money0(v)}</text>`;
-  }
   const conVentas = meses.filter((x) => x.ventas > 0);
   const prom = conVentas.length ? conVentas.reduce((a, x) => a + x.ventas, 0) / conVentas.length : 0;
-  meses.forEach((x, i) => {
-    const cx = x0 + i * bw + bw * 0.2, w = bw * 0.6, last = i === meses.length - 1;
-    s += `<rect x="${cx}" y="${yy(x.ventas)}" width="${w}" height="${base - yy(x.ventas)}" rx="3" fill="var(--accent)" fill-opacity="${last ? 1 : 0.45}"><title>${x.lbl}: ${money0(x.ventas)}</title></rect>`;
-    if (x.ventas > 0 && meses.length <= 8) s += `<text x="${cx + w / 2}" y="${yy(x.ventas) - 6}" text-anchor="middle" font-size="12" font-weight="700" fill="var(--ink)">${money0(x.ventas)}</text>`;
-    if (meses.length <= 12 || i % Math.ceil(meses.length / 12) === 0) s += `<text x="${cx + w / 2}" y="${base + 18}" text-anchor="middle" font-size="12" fill="var(--muted)">${x.lbl}</text>`;
-  });
-  if (prom > 0) s += `<line x1="${x0}" x2="${W - 10}" y1="${yy(prom)}" y2="${yy(prom)}" stroke="var(--ink)" stroke-dasharray="4 4"/><text x="${W - 12}" y="${yy(prom) - 6}" text-anchor="end" font-size="12" fill="var(--ink)">Promedio ${money0(prom)}</text>`;
-  $("chart").innerHTML = s;
+  EXP = { meses, porDia, prom };
+  dibujarGrafico();
 
   const tot = meses.reduce((a, x) => { ["ventas", "fiado", "abono", "gasto", "retiro"].forEach((k) => (a[k] += x[k])); return a; }, { ventas: 0, fiado: 0, abono: 0, gasto: 0, retiro: 0 });
   const primero = conVentas[0], ultimo = conVentas[conVentas.length - 1];
