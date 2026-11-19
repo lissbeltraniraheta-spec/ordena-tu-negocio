@@ -12,7 +12,7 @@ const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const money = (n) => "$" + Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const money0 = (n) => "$" + Math.round(Number(n || 0)).toLocaleString("en-US");
-const TIPOS = { contado: "Contado", fiado: "Al crédito", abono: "Abono", gasto: "Gasto", compra: "Compra al contado", compra_credito: "Compra al crédito", retiro: "Retiro dueño" };
+const TIPOS = { contado: "Contado", fiado: "Al crédito", abono: "Abono", gasto: "Gasto", compra: "Compra al contado", compra_credito: "Compra al crédito", pago_compra: "Pago a proveedor", retiro: "Retiro dueño" };
 const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 const MESES_C = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 const DIAS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
@@ -210,7 +210,7 @@ $("sel-fecha").addEventListener("change", async (e) => {
 });
 
 /* ---------- carga de datos ---------- */
-async function cargarTodo() { await Promise.all([cargarDia(), cargarSaldos()]); pintarHoy(); pintarFiados(); }
+async function cargarTodo() { await Promise.all([cargarDia(), cargarSaldos()]); pintarHoy(); pintarFiados(); pintarAlertas(); }
 async function cargarDia() {
   const { data, error } = await sb.from("movimientos")
     .select("id,fecha,hora,tipo,descripcion,monto,cliente_id,origen,clientes(nombre)")
@@ -246,10 +246,98 @@ function pintarSelectorCliente() {
   $("l-cliente-nuevo").hidden = sel.value !== "__nuevo";
 }
 function totales(lista) {
-  const t = { contado: 0, fiado: 0, abono: 0, gasto: 0, retiro: 0, compra: 0, compra_credito: 0 };
+  const t = { contado: 0, fiado: 0, abono: 0, gasto: 0, retiro: 0, compra: 0, compra_credito: 0, pago_compra: 0 };
   (lista || S.movs).forEach((m) => { t[m.tipo] += Number(m.monto); });
   return t;
 }
+
+/* ---------- Fechas de pago y alertas ---------- */
+const DIAS_CREDITO = 30;   // plazo que se sugiere si no se escribe otra fecha
+const DIAS_AVISO = 7;      // se avisa cuando faltan 7 días o menos
+const conVence = (t) => t === "fiado" || t === "compra_credito";
+const masDias = (f, n) => { const { y, m, d } = partes(f); const x = new Date(y, m - 1, d + n); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`; };
+const venceSugerido = () => masDias(S.fecha || hoyLocal(), DIAS_CREDITO);
+const fechaValida = (v) => /^\d{4}-\d{2}-\d{2}$/.test(v || "") ? v : venceSugerido();
+const fechaC2 = (f) => { const { m, d } = partes(f); return `${d} ${MESES_C[m - 1]}`; };
+function etiquetaVence(v, hoy) {
+  const n = diasEntre(hoy, v);
+  if (n < 0) return [`Atrasado ${-n} ${n === -1 ? "día" : "días"}`, "atrasado"];
+  if (n === 0) return ["Vence hoy", "atrasado"];
+  if (n === 1) return ["Vence mañana", "pronto"];
+  if (n <= DIAS_AVISO) return [`Vence en ${n} días`, "pronto"];
+  return [`Vence el ${fechaC2(v)}`, "lejos"];
+}
+async function pintarAlertas() {
+  if (!S.negocio) return;
+  const hoy = hoyLocal(), limite = masDias(hoy, DIAS_AVISO);
+  const deudores = S.saldos.filter((c) => Number(c.saldo) > 0).map((c) => c.id);
+  const [rc, rv] = await Promise.all([
+    sb.from("movimientos").select("id,fecha,descripcion,monto,vence").eq("negocio_id", S.negocio.id).eq("tipo", "compra_credito").order("fecha").limit(500),
+    deudores.length
+      ? sb.from("movimientos").select("fecha,tipo,monto,vence,cliente_id,created_at").eq("negocio_id", S.negocio.id).in("cliente_id", deudores).in("tipo", ["fiado", "abono"]).order("fecha").limit(5000)
+      : Promise.resolve({ data: [] }),
+  ]);
+  if (rc.error || rv.error) return;
+  // Compras al crédito que todavía no se pagan
+  const ids = (rc.data || []).map((c) => c.id);
+  let pagadas = new Set();
+  if (ids.length) {
+    const { data } = await sb.from("movimientos").select("paga_id").eq("negocio_id", S.negocio.id).in("paga_id", ids);
+    pagadas = new Set((data || []).map((p) => p.paga_id));
+  }
+  const porPagar = (rc.data || []).filter((c) => !pagadas.has(c.id)).map((c) => ({ ...c, vence: c.vence || masDias(c.fecha, DIAS_CREDITO) }))
+    .sort((a, b) => a.vence.localeCompare(b.vence));
+  // Ventas al crédito: los abonos pagan primero lo más viejo; queda lo pendiente de cada compra
+  const cobrar = [];
+  for (const id of deudores) {
+    const movs = (rv.data || []).filter((m) => m.cliente_id === id);
+    let abonado = movs.filter((m) => m.tipo === "abono").reduce((s, m) => s + Number(m.monto), 0);
+    let monto = 0, vence = null;
+    for (const f of movs.filter((m) => m.tipo === "fiado")) {
+      const usa = Math.min(abonado, Number(f.monto)); abonado -= usa;
+      const falta = Math.round((Number(f.monto) - usa) * 100) / 100;
+      if (falta <= 0) continue;
+      const v = f.vence || masDias(f.fecha, DIAS_CREDITO);
+      if (v <= limite) { monto += falta; if (!vence || v < vence) vence = v; }
+    }
+    if (monto > 0.004) cobrar.push({ cliente: S.saldos.find((c) => c.id === id), monto, vence });
+  }
+  cobrar.sort((a, b) => a.vence.localeCompare(b.vence));
+  const proveedoresPronto = porPagar.filter((c) => c.vence <= limite);
+  $("p-alertas").hidden = !cobrar.length && !porPagar.length;
+  $("al-resumen").textContent = [
+    cobrar.length ? `${cobrar.length} ${cobrar.length === 1 ? "cliente debe" : "clientes deben"} pagarle pronto` : "",
+    proveedoresPronto.length ? `${proveedoresPronto.length} ${proveedoresPronto.length === 1 ? "pago" : "pagos"} a proveedores por vencer` : "",
+  ].filter(Boolean).join(" · ") || "Nada por vencer en los próximos 7 días";
+  $("al-cobrar-box").hidden = !cobrar.length;
+  $("al-cobrar").innerHTML = cobrar.map((x) => {
+    const [txt, cls] = etiquetaVence(x.vence, hoy);
+    return `<li><span class="al-tag ${cls}">${txt}</span><span class="desc">${esc(x.cliente.nombre)}<small>Debe pagar ${money(x.monto)} de ventas al crédito</small></span>
+      <button class="btn small" type="button" data-ver-cliente="${x.cliente.id}">Cobrar</button></li>`;
+  }).join("");
+  $("al-pagar-box").hidden = !porPagar.length;
+  $("al-pagar").innerHTML = porPagar.map((c) => {
+    const [txt, cls] = etiquetaVence(c.vence, hoy);
+    return `<li><span class="al-tag ${cls}">${txt}</span><span class="desc">${esc(c.descripcion)}<small>${money(c.monto)} · comprado el ${fechaC2(c.fecha)}</small></span>
+      <button class="btn small" type="button" data-pagar="${c.id}">Ya lo pagué</button></li>`;
+  }).join("");
+  S.porPagar = porPagar;
+}
+$("al-cobrar").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-ver-cliente]"); if (!b) return;
+  location.hash = "fiados";
+  setTimeout(() => { $("cl-filtro").value = b.dataset.verCliente; $("cl-buscar").value = ""; pintarFiados(); }, 50);
+});
+$("al-pagar").addEventListener("click", async (e) => {
+  const b = e.target.closest("[data-pagar]"); if (!b) return;
+  const c = (S.porPagar || []).find((x) => x.id === b.dataset.pagar); if (!c) return;
+  if (!b.classList.contains("confirm")) { b.classList.add("confirm"); b.textContent = `Anotar pago de ${money(c.monto)}`; return; }
+  b.disabled = true;
+  const { error } = await sb.from("movimientos").insert({ negocio_id: S.negocio.id, fecha: hoyLocal(), tipo: "pago_compra", descripcion: ("Pago: " + c.descripcion).slice(0, 120), monto: c.monto, paga_id: c.id, origen: "manual" });
+  if (error) { b.disabled = false; toast(traducirError(error)); return; }
+  toast("Pago anotado. Se restó de la caja de hoy.");
+  await cargarTodo();
+});
 
 /* ---------- Movimientos del día ---------- */
 function pintarHoy() {
@@ -266,7 +354,7 @@ function pintarHoy() {
   $("n-movs").textContent = S.movs.length ? S.movs.length + " anotados" : "";
   $("movs-vacio").hidden = S.movs.length > 0;
   $("movs").innerHTML = S.movs.slice().reverse().map((m) => {
-    const neg = m.tipo === "gasto" || m.tipo === "retiro" || m.tipo === "compra" ? "−" : "";
+    const neg = m.tipo === "gasto" || m.tipo === "retiro" || m.tipo === "compra" || m.tipo === "pago_compra" ? "−" : "";
     const origen = m.origen === "foto" ? " · foto" : m.origen === "audio" ? " · audio" : "";
     return `<li class="${m._nuevo ? "new" : ""}"><span class="chip c-${m.tipo}">${TIPOS[m.tipo]}</span>
       <span class="desc">${esc(m.descripcion)}<small class="num">${String(m.hora).slice(0, 5)}${m.clientes ? " · " + esc(m.clientes.nombre) : ""}${origen}</small></span>
@@ -302,6 +390,7 @@ async function resolverCliente(nombre) {
 
 $("a-tipo").addEventListener("change", () => {
   const t = $("a-tipo").value; $("l-cliente").hidden = !(t === "fiado" || t === "abono");
+  $("l-vence").hidden = !conVence(t); if (conVence(t) && !$("a-vence").value) $("a-vence").value = venceSugerido();
   $("a-desc").placeholder = t === "abono" ? "Opcional (si lo deja vacío dice «Abono de cliente»)" : "Ej. Pintura galón blanco";
   pintarSelectorCliente();
 });
@@ -326,9 +415,10 @@ $("f-add").addEventListener("submit", async (e) => {
         cliente_id = await resolverCliente($("a-cliente").value);
       } else cliente_id = elegido;
     }
-    const { error } = await sb.from("movimientos").insert({ negocio_id: S.negocio.id, fecha: S.fecha, tipo, descripcion, monto, cliente_id, origen: "manual" });
+    const vence = conVence(tipo) ? fechaValida($("a-vence").value) : null;
+    const { error } = await sb.from("movimientos").insert({ negocio_id: S.negocio.id, fecha: S.fecha, tipo, descripcion, monto, cliente_id, vence, origen: "manual" });
     if (error) throw error;
-    $("a-desc").value = ""; $("a-monto").value = ""; $("a-cliente").value = ""; $("a-cliente-sel").value = ""; $("l-cliente-nuevo").hidden = true;
+    $("a-desc").value = ""; $("a-monto").value = ""; $("a-vence").value = conVence(tipo) ? venceSugerido() : ""; $("a-cliente").value = ""; $("a-cliente-sel").value = ""; $("l-cliente-nuevo").hidden = true;
     toast("Anotado: " + TIPOS[tipo] + " " + money(monto));
     await cargarTodo();
   } catch (err) { toast(traducirError(err)); }
@@ -493,8 +583,9 @@ function filaRevision(l, i) {
     <input type="checkbox" checked aria-label="Incluir esta línea" data-k="ok">
     <div class="rev-fields">
       <label class="full">Qué fue<input data-k="descripcion" maxlength="120" value="${esc(l.descripcion)}"></label>
-      <label>Tipo<select data-k="tipo">${Object.entries(TIPOS).map(([k, v]) => `<option value="${k}"${k === l.tipo ? " selected" : ""}>${v}</option>`).join("")}</select></label>
+      <label>Tipo<select data-k="tipo">${Object.entries(TIPOS).filter(([k]) => k !== "pago_compra").map(([k, v]) => `<option value="${k}"${k === l.tipo ? " selected" : ""}>${v}</option>`).join("")}</select></label>
       <label>Monto (US$)<input data-k="monto" type="number" min="0.01" step="0.01" inputmode="decimal" value="${l.monto}"></label>
+      <label data-vence${conVence(l.tipo) ? "" : " hidden"}>Fecha para pagar<input data-k="vence" type="date" value="${venceSugerido()}"></label>
       <label class="full" data-cliente${conCliente ? "" : " hidden"}>Cliente<input data-k="cliente" list="dl-clientes" maxlength="80" value="${esc(l.cliente || "")}"></label>
     </div>
   </div>`;
@@ -515,7 +606,7 @@ function cerrarRevision() { S.pendientes = null; $("p-rev").hidden = true; $("re
 $("rev-list").addEventListener("change", (e) => {
   const item = e.target.closest(".rev-item"); if (!item) return;
   if (e.target.dataset.k === "ok") item.classList.toggle("off", !e.target.checked);
-  if (e.target.dataset.k === "tipo") { const t = e.target.value; item.querySelector("[data-cliente]").hidden = !(t === "fiado" || t === "abono"); }
+  if (e.target.dataset.k === "tipo") { const t = e.target.value; item.querySelector("[data-cliente]").hidden = !(t === "fiado" || t === "abono"); item.querySelector("[data-vence]").hidden = !conVence(t); }
 });
 $("b-rev-no").addEventListener("click", cerrarRevision);
 $("b-rev-ok").addEventListener("click", async () => {
@@ -529,7 +620,8 @@ $("b-rev-ok").addEventListener("click", async () => {
       if (!descripcion || !(monto > 0)) { toast("Revise que cada línea tenga descripción y monto"); v("monto").focus(); b.disabled = false; return; }
       let cliente_id = null;
       if (tipo === "fiado" || tipo === "abono") cliente_id = await resolverCliente(v("cliente").value || "Cliente sin nombre");
-      filas.push({ negocio_id: S.negocio.id, fecha: S.fecha, tipo, descripcion, monto, cliente_id, origen: S.pendientes.tipo, captura_id: S.pendientes.capturaId });
+      const vence = conVence(tipo) ? fechaValida(v("vence").value) : null;
+      filas.push({ negocio_id: S.negocio.id, fecha: S.fecha, tipo, descripcion, monto, cliente_id, vence, origen: S.pendientes.tipo, captura_id: S.pendientes.capturaId });
     }
     if (filas.length) { const { error } = await sb.from("movimientos").insert(filas); if (error) throw error; }
     toast(filas.length === 1 ? "1 movimiento guardado" : `${filas.length} movimientos guardados`);
@@ -744,12 +836,12 @@ async function pintarCaja() {
   if (!lista) return;
   const t = totales(lista);
   const inicial = Number(S.negocio.efectivo_inicial || 0);
-  const esperado = inicial + t.contado + t.abono - t.compra - t.gasto - t.retiro;
+  const esperado = inicial + t.contado + t.abono - t.compra - t.pago_compra - t.gasto - t.retiro;
   S.esperado = esperado;
   $("t-caja").textContent = "Cierre de caja · " + textoRango(desde, hasta);
   $("b-cierre").textContent = varios ? `Guardar cierre de ${diasEntre(desde, hasta) + 1} días` : "Guardar cierre del día";
   $("c-inicial").value = inicial;
-  const filas = [["Efectivo con que se abrió", inicial], ["+ Ventas al contado", t.contado], ["+ Abonos de clientes", t.abono], ["− Compras al contado", -t.compra], ["− Gastos del negocio", -t.gasto], ["− Retiros del dueño", -t.retiro]];
+  const filas = [["Efectivo con que se abrió", inicial], ["+ Ventas al contado", t.contado], ["+ Abonos de clientes", t.abono], ["− Compras al contado", -t.compra], ["− Pagos a proveedores", -t.pago_compra], ["− Gastos del negocio", -t.gasto], ["− Retiros del dueño", -t.retiro]];
   $("cuadre").innerHTML = filas.map(([a, b]) => `<tr><td>${a}</td><td>${b < 0 ? "−" + money(-b) : money(b)}</td></tr>`).join("")
     + `<tr class="total"><td>Debe haber en la gaveta</td><td>${money(esperado)}</td></tr>`;
   S.cajaT = { inicial, ...t, desde, hasta };
@@ -778,12 +870,12 @@ async function pintarCaja() {
   const [inicioMes] = rangoMes(S.fecha);
   const { data, error } = await sb.from("resumen_mensual").select("tipo,total").eq("negocio_id", S.negocio.id).eq("mes", inicioMes);
   if (error) { toast(traducirError(error)); return; }
-  const m = { contado: 0, fiado: 0, abono: 0, gasto: 0, retiro: 0, compra: 0, compra_credito: 0 };
+  const m = { contado: 0, fiado: 0, abono: 0, gasto: 0, retiro: 0, compra: 0, compra_credito: 0, pago_compra: 0 };
   (data || []).forEach((r) => { m[r.tipo] = Number(r.total); });
   const { m: mes } = partes(S.fecha);
   $("t-mes").textContent = "Resumen de " + MESES[mes - 1];
-  const entra = m.contado + m.abono, neto = entra - m.compra - m.gasto;
-  $("mes").innerHTML = [["Ventas (contado + al crédito)", m.contado + m.fiado], ["Dinero que entró (contado + abonos)", entra], ["− Compras al contado", -m.compra], ["− Gastos del negocio", -m.gasto], ["− Retiros del dueño", -m.retiro]]
+  const entra = m.contado + m.abono, neto = entra - m.compra - m.pago_compra - m.gasto;
+  $("mes").innerHTML = [["Ventas (contado + al crédito)", m.contado + m.fiado], ["Dinero que entró (contado + abonos)", entra], ["− Compras al contado", -m.compra], ["− Pagos a proveedores", -m.pago_compra], ["− Gastos del negocio", -m.gasto], ["− Retiros del dueño", -m.retiro]]
     .map(([a, b]) => `<tr><td>${a}</td><td>${b < 0 ? "−" + money(-b) : money(b)}</td></tr>`).join("")
     + `<tr class="total"><td>Queda para el negocio</td><td>${money(neto - m.retiro)}</td></tr>`;
   const box = $("m-msg");
@@ -811,7 +903,7 @@ $("b-cierre").addEventListener("click", async () => {
   const t = S.cajaT, b = $("b-cierre"); b.disabled = true;
   const fila = {
     negocio_id: S.negocio.id, fecha: t.hasta, fecha_desde: t.desde === t.hasta ? null : t.desde, efectivo_inicial: t.inicial, ventas_contado: t.contado, abonos: t.abono,
-    compras: t.compra, gastos: t.gasto, retiros: t.retiro, esperado: Math.round(S.esperado * 100) / 100, contado: Math.round(v * 100) / 100,
+    compras: t.compra + t.pago_compra, gastos: t.gasto, retiros: t.retiro, esperado: Math.round(S.esperado * 100) / 100, contado: Math.round(v * 100) / 100,
     diferencia: Math.round((v - S.esperado) * 100) / 100, updated_at: new Date().toISOString(),
   };
   const { error } = await sb.from("cierres").upsert(fila, { onConflict: "negocio_id,fecha" });
@@ -863,7 +955,7 @@ async function pintarHistorial() {
       filas.push(`<tr class="sin-cierre"><td>${rangoCorto(dia, dia)}</td><td colspan="3" class="muted">Incluido en el cierre del ${rangoCorto(dentro.fecha_desde, dentro.fecha)}</td></tr>`);
     } else {
       const t = totales((rm.data || []).filter((m) => m.fecha === dia));
-      const esperado = inicial + t.contado + t.abono - t.compra - t.gasto - t.retiro;
+      const esperado = inicial + t.contado + t.abono - t.compra - t.pago_compra - t.gasto - t.retiro;
       filas.push(`<tr class="sin-cierre"><td>${rangoCorto(dia, dia)}</td><td>${money(esperado)}</td><td><span class="dif-bad">Sin cierre</span></td><td>—</td></tr>`);
     }
   }
@@ -1010,10 +1102,10 @@ async function pintarExpediente() {
   const meses = [];
   const pa = partes(a), pb = partes(b);
   if (porDia) {
-    for (let i = 0; i < dias; i++) { const d = new Date(pa.y, pa.m - 1, pa.d + i); meses.push({ key: fISO(d), lbl: String(d.getDate()), contado: 0, fiado: 0, abono: 0, gasto: 0, retiro: 0, compra: 0, compra_credito: 0 }); }
+    for (let i = 0; i < dias; i++) { const d = new Date(pa.y, pa.m - 1, pa.d + i); meses.push({ key: fISO(d), lbl: String(d.getDate()), contado: 0, fiado: 0, abono: 0, gasto: 0, retiro: 0, compra: 0, compra_credito: 0, pago_compra: 0 }); }
   } else {
     const n = (pb.y - pa.y) * 12 + (pb.m - pa.m) + 1;
-    for (let i = 0; i < n; i++) { const d = new Date(pa.y, pa.m - 1 + i, 1); meses.push({ key: fISO(d).slice(0, 7), lbl: MESES_C[d.getMonth()], contado: 0, fiado: 0, abono: 0, gasto: 0, retiro: 0, compra: 0, compra_credito: 0 }); }
+    for (let i = 0; i < n; i++) { const d = new Date(pa.y, pa.m - 1 + i, 1); meses.push({ key: fISO(d).slice(0, 7), lbl: MESES_C[d.getMonth()], contado: 0, fiado: 0, abono: 0, gasto: 0, retiro: 0, compra: 0, compra_credito: 0, pago_compra: 0 }); }
   }
   const idx = new Map(meses.map((x) => [x.key, x]));
   movs.forEach((r) => { const x = idx.get(porDia ? r.fecha : r.fecha.slice(0, 7)); if (x) x[r.tipo] += Number(r.monto); });
@@ -1024,7 +1116,7 @@ async function pintarExpediente() {
   EXP = { meses, porDia, prom };
   dibujarGrafico();
 
-  const tot = meses.reduce((a, x) => { ["ventas", "fiado", "abono", "gasto", "retiro", "compra", "compra_credito"].forEach((k) => (a[k] += x[k])); return a; }, { ventas: 0, fiado: 0, abono: 0, gasto: 0, retiro: 0, compra: 0, compra_credito: 0 });
+  const tot = meses.reduce((a, x) => { ["ventas", "fiado", "abono", "gasto", "retiro", "compra", "compra_credito"].forEach((k) => (a[k] += x[k])); return a; }, { ventas: 0, fiado: 0, abono: 0, gasto: 0, retiro: 0, compra: 0, compra_credito: 0, pago_compra: 0 });
   const primero = conVentas[0], ultimo = conVentas[conVentas.length - 1];
   const crec = primero && ultimo && primero !== ultimo && primero.ventas > 0 ? ((ultimo.ventas / primero.ventas - 1) * 100) : null;
   $("exp-stats").innerHTML = [

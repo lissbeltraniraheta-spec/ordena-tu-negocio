@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&display=swap">
-<link rel="stylesheet" href="/app.css?v=1795057086">
+<link rel="stylesheet" href="/app.css?v=1795057242">
 </head>
 <body>
 <div class="wrap">
@@ -118,6 +118,21 @@
         <div class="kpi"><span class="eyebrow">Gastos</span><b class="num" id="k-gastos">$0.00</b></div>
       </div>
 
+      <div class="panel alertas" id="p-alertas" hidden>
+        <div class="row between">
+          <h3>🔔 Pagos por vencer</h3>
+        </div>
+        <p class="muted" id="al-resumen"></p>
+        <div id="al-cobrar-box" hidden>
+          <p class="eyebrow">Clientes que le deben pagar</p>
+          <ul class="al-lista" id="al-cobrar"></ul>
+        </div>
+        <div id="al-pagar-box" hidden>
+          <p class="eyebrow">Lo que usted debe pagar a proveedores</p>
+          <ul class="al-lista" id="al-pagar"></ul>
+        </div>
+      </div>
+
       <div class="two">
         <div class="panel">
           <div>
@@ -190,6 +205,9 @@
           </label>
           <label for="a-monto">Monto (US$)
             <input id="a-monto" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0.00" required>
+          </label>
+          <label for="a-vence" id="l-vence" hidden>Fecha para pagar
+            <input id="a-vence" type="date">
           </label>
           <div class="full cliente-pick" id="l-cliente" hidden>
             <label for="a-cliente-sel">Cliente
@@ -334,6 +352,6 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="/config.js"></script>
-<script src="/app.js?v=1795057086"></script>
+<script src="/app.js?v=1795057242"></script>
 </body>
 </html>
