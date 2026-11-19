@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&display=swap">
-<link rel="stylesheet" href="/app.css?v=1795058205">
+<link rel="stylesheet" href="/app.css?v=1795058810">
 </head>
 <body>
 <div class="wrap">
@@ -123,81 +123,13 @@
         <div class="kpi"><span class="eyebrow">Gastos</span><b class="num" id="k-gastos">$0.00</b></div>
       </div>
 
-      <div class="panel alertas" id="p-alertas" hidden>
-        <div class="row between">
-          <h3>🔔 Pagos por vencer</h3>
-        </div>
-        <p class="muted" id="al-resumen"></p>
-        <div id="al-cobrar-box" hidden>
-          <p class="eyebrow">Clientes que le deben pagar</p>
-          <ul class="al-lista" id="al-cobrar"></ul>
-        </div>
-        <div id="al-pagar-box" hidden>
-          <p class="eyebrow">Lo que usted debe pagar a proveedores</p>
-          <ul class="al-lista" id="al-pagar"></ul>
-        </div>
-      </div>
-
-      <div class="two">
-        <div class="panel">
-          <div>
-            <h3>Foto del cuaderno</h3>
-            <p class="muted">Tome o suba la foto de la página. La IA la lee y usted revisa antes de guardar.</p>
-          </div>
-          <img class="foto-prev" id="foto-prev" alt="Foto que se va a leer" hidden>
-          <div class="row">
-            <label class="btn primary" for="in-foto">Tomar o subir foto</label>
-            <input class="vh" id="in-foto" type="file" accept="image/*">
-          </div>
-          <p class="estado" id="st-foto" role="status"></p>
-        </div>
-
-        <div class="panel">
-          <div>
-            <h3>Nota de voz</h3>
-            <p class="muted">Grabe aquí o suba el audio de WhatsApp. La IA lo escucha y lo convierte en movimientos.</p>
-          </div>
-          <audio id="aud" controls hidden></audio>
-          <div class="row">
-            <button class="btn primary" id="b-grabar" type="button">Grabar audio</button>
-            <label class="btn" for="in-audio">Subir audio</label>
-            <input class="vh" id="in-audio" type="file" accept="audio/*,.opus,.ogg,.m4a,.mp3,.aac,.wav,.amr">
-          </div>
-          <p class="estado" id="st-audio" role="status"></p>
-        </div>
-      </div>
-
-      <div class="panel" id="p-rev" hidden>
-        <div>
-          <p class="ia-tag" id="rev-origen">Leído con IA</p>
-          <h3>Revise antes de guardar</h3>
-          <p class="muted" id="rev-nota"></p>
-          <p class="transcript" id="rev-trans" hidden></p>
-        </div>
-        <div id="rev-list" class="rev-list"></div>
-        <datalist id="dl-clientes"></datalist>
-        <div class="row">
-          <button class="btn primary" id="b-rev-ok" type="button">Guardar en el registro</button>
-          <button class="btn" id="b-rev-no" type="button">Descartar</button>
-        </div>
-      </div>
-
-      <div class="panel">
-        <div class="row between">
-          <h3 id="t-movs">Movimientos del día</h3>
-          <span class="muted num" id="n-movs"></span>
-        </div>
-        <ul class="list" id="movs"></ul>
-        <p class="muted vacio" id="movs-vacio" hidden>Todavía no hay nada anotado este día.</p>
-      </div>
-
-      <div class="panel">
-        <h3>Anotar a mano</h3>
+      <div class="panel anotar">
+        <div class="sec-head"><span class="sec-ico" aria-hidden="true">✍️</span><div><h3>Anotar a mano</h3><p class="muted">Escriba una venta, compra, abono o gasto.</p></div></div>
         <form class="add" id="f-add">
           <label class="full" for="a-desc">Qué se vendió o pagó
             <input id="a-desc" maxlength="120" placeholder="Ej. Pintura galón blanco">
           </label>
-          <label for="a-tipo">Tipo
+          <label class="full" for="a-tipo">Tipo
             <select id="a-tipo">
               <option value="contado">Venta al contado</option>
               <option value="fiado">Venta al crédito</option>
@@ -222,9 +154,83 @@
               <input id="a-cliente" list="dl-clientes" maxlength="80" placeholder="Nombre del cliente">
             </label>
           </div>
-          <button class="btn primary full" type="submit">Agregar</button>
+          <button class="btn primary full grande" type="submit">Agregar al registro</button>
         </form>
       </div>
+
+      <div class="captura-sec">
+        <div class="captura-titulo">
+          <h3>O deje que la IA lo anote por usted</h3>
+          <p class="muted">Usted solo revisa y guarda.</p>
+        </div>
+        <div class="captura-grid">
+          <div class="cap cap-foto">
+            <div class="cap-head">
+              <span class="cap-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.5" r="4"/></svg></span>
+              <div><h3>Foto del cuaderno</h3><p>Tómele foto a la página y la IA la lee.</p></div>
+            </div>
+            <img class="foto-prev" id="foto-prev" alt="Foto que se va a leer" hidden>
+            <label class="btn cap-btn" for="in-foto">Tomar o subir foto</label>
+            <input class="vh" id="in-foto" type="file" accept="image/*">
+            <p class="estado" id="st-foto" role="status"></p>
+          </div>
+          <div class="cap cap-voz">
+            <div class="cap-head">
+              <span class="cap-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M8.5 21h7"/></svg></span>
+              <div><h3>Nota de voz</h3><p>Cuente lo que vendió, como en un audio de WhatsApp.</p></div>
+            </div>
+            <audio id="aud" controls hidden></audio>
+            <button class="btn cap-btn" id="b-grabar" type="button">Grabar audio</button>
+            <label class="btn cap-btn2" for="in-audio">Subir audio de WhatsApp</label>
+            <input class="vh" id="in-audio" type="file" accept="audio/*,.opus,.ogg,.m4a,.mp3,.aac,.wav,.amr">
+            <p class="estado" id="st-audio" role="status"></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel" id="p-rev" hidden>
+        <div>
+          <p class="ia-tag" id="rev-origen">Leído con IA</p>
+          <h3>Revise antes de guardar</h3>
+          <p class="muted" id="rev-nota"></p>
+          <p class="transcript" id="rev-trans" hidden></p>
+        </div>
+        <div id="rev-list" class="rev-list"></div>
+        <datalist id="dl-clientes"></datalist>
+        <div class="row">
+          <button class="btn primary" id="b-rev-ok" type="button">Guardar en el registro</button>
+          <button class="btn" id="b-rev-no" type="button">Descartar</button>
+        </div>
+      </div>
+
+      <div class="panel alertas" id="p-alertas" hidden>
+        <div class="row between">
+          <h3>🔔 Pagos por vencer</h3>
+        </div>
+        <p class="muted" id="al-resumen"></p>
+        <div id="al-cobrar-box" hidden>
+          <p class="eyebrow">Clientes que le deben pagar</p>
+          <ul class="al-lista" id="al-cobrar"></ul>
+        </div>
+        <div id="al-pagar-box" hidden>
+          <p class="eyebrow">Lo que usted debe pagar a proveedores</p>
+          <ul class="al-lista" id="al-pagar"></ul>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="row between">
+          <h3 id="t-movs">Movimientos del día</h3>
+          <span class="muted num" id="n-movs"></span>
+        </div>
+        <ul class="list" id="movs"></ul>
+        <p class="muted vacio" id="movs-vacio" hidden>Todavía no hay nada anotado este día.</p>
+      </div>
+
+
+
+
+
     </section>
 
     <!-- FIADOS -->
@@ -367,8 +373,8 @@
     <!-- ARCHIVO -->
     <section class="view" id="v-archivo" hidden>
       <div class="panel">
-        <h3>Fotos y audios recibidos</h3>
-        <p class="muted">Para liberar espacio, las fotos y audios se borran solos después de 1 día. Lo que la IA leyó queda guardado aquí.</p>
+        <div class="sec-head"><span class="sec-ico" aria-hidden="true">📷</span><div><h3>Fotos y audios recibidos</h3>
+        <p class="muted">Para liberar espacio, las fotos y audios se borran solos después de 1 día. Lo que la IA leyó queda guardado aquí.</p></div></div>
         <div id="capturas"></div>
         <p class="muted vacio" id="cap-vacio" hidden>Todavía no hay fotos ni audios.</p>
       </div>
@@ -479,6 +485,6 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="/config.js"></script>
-<script src="/app.js?v=1795058205"></script>
+<script src="/app.js?v=1795058810"></script>
 </body>
 </html>
