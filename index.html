@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&display=swap">
-<link rel="stylesheet" href="/app.css?v=1795057951">
+<link rel="stylesheet" href="/app.css?v=1795058205">
 </head>
 <body>
 <div class="wrap">
@@ -95,15 +95,18 @@
       </div>
     </header>
 
-    <nav class="tabs" aria-label="Secciones">
-      <div class="tabbar">
-        <a href="#hoy" data-view="hoy">Movimientos del día</a>
-        <a href="#fiados" data-view="fiados">Al crédito</a>
-        <a href="#compras" data-view="compras">Compras</a>
-        <a href="#caja" data-view="caja">Cierre de caja</a>
-        <a href="#archivo" data-view="archivo">Fotos y audios</a>
-        <a href="#buscar" data-view="buscar">Consultar</a>
-        <a href="#expediente" data-view="expediente">Expediente</a>
+    <nav class="menu" id="menu" aria-label="Secciones">
+      <button class="menu-btn" id="menu-btn" type="button" aria-expanded="false" aria-controls="menu-lista">
+        <span class="ico" aria-hidden="true">☰</span><span id="menu-actual">Movimientos del día</span><span class="menu-flecha" aria-hidden="true">▾</span>
+      </button>
+      <div class="tabbar" id="menu-lista">
+        <a href="#hoy" data-view="hoy"><span class="ico" aria-hidden="true">📝</span><span>Movimientos del día</span></a>
+        <a href="#fiados" data-view="fiados"><span class="ico" aria-hidden="true">🤝</span><span>Al crédito</span></a>
+        <a href="#compras" data-view="compras"><span class="ico" aria-hidden="true">🛒</span><span>Compras</span></a>
+        <a href="#caja" data-view="caja"><span class="ico" aria-hidden="true">💵</span><span>Cierre de caja</span></a>
+        <a href="#archivo" data-view="archivo"><span class="ico" aria-hidden="true">📷</span><span>Fotos y audios</span></a>
+        <a href="#buscar" data-view="buscar"><span class="ico" aria-hidden="true">🔍</span><span>Consultar</span></a>
+        <a href="#expediente" data-view="expediente"><span class="ico" aria-hidden="true">📁</span><span>Expediente</span></a>
       </div>
     </nav>
 
@@ -476,6 +479,6 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="/config.js"></script>
-<script src="/app.js?v=1795057951"></script>
+<script src="/app.js?v=1795058205"></script>
 </body>
 </html>

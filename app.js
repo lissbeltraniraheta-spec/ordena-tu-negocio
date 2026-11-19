@@ -1344,7 +1344,10 @@ function mostrarTab() {
   if ($("v-app").hidden || !S.negocio) return;
   const v = VISTAS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "hoy";
   VISTAS.forEach((n) => ($("v-" + n).hidden = n !== v));
-  document.querySelectorAll(".tabbar a").forEach((a) => { if (a.dataset.view === v) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current"); });
+  document.querySelectorAll(".tabbar a").forEach((a) => {
+    if (a.dataset.view === v) { a.setAttribute("aria-current", "page"); $("menu-actual").textContent = a.lastElementChild.textContent; } else a.removeAttribute("aria-current");
+  });
+  cerrarMenu();
   if (v === "caja") pintarCaja();
   if (v === "archivo") pintarArchivo();
   if (v === "compras") pintarCompras();
@@ -1352,6 +1355,14 @@ function mostrarTab() {
   if (v === "expediente") pintarExpediente();
 }
 window.addEventListener("hashchange", mostrarTab);
+function cerrarMenu() { $("menu").classList.remove("abierto"); $("menu-btn").setAttribute("aria-expanded", "false"); }
+$("menu-btn").addEventListener("click", () => {
+  const abierto = $("menu").classList.toggle("abierto");
+  $("menu-btn").setAttribute("aria-expanded", String(abierto));
+});
+$("menu-lista").addEventListener("click", cerrarMenu);
+document.addEventListener("click", (e) => { if (!e.target.closest("#menu")) cerrarMenu(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") cerrarMenu(); });
 
 /* ---------- arranque ---------- */
 sb.auth.getSession().then(({ data }) => { if (!data.session) mostrarPantalla("auth"); });

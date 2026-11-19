@@ -38,10 +38,27 @@ p{margin:0}
 .biz-name{display:grid;gap:2px;min-width:0}
 .sel-negocio{font-family:var(--display);font-weight:800;font-size:1.4rem;border:0;background:transparent;padding:0;color:var(--ink);max-width:100%}
 .sel-fecha{width:auto}
-nav.tabs{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:6px;overflow-x:auto}
-.tabbar{display:flex;gap:6px;min-width:max-content}
-.tabbar a{font-family:var(--display);font-weight:600;font-size:.95rem;text-decoration:none;color:var(--muted);padding:9px 14px;border-radius:10px;border:1px solid var(--line);background:var(--surface)}
-.tabbar a[aria-current="page"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+/* Menú de módulos: lista vertical. En el teléfono se abre con un botón; en pantalla grande queda fijo a la izquierda */
+nav.menu{position:sticky;top:env(safe-area-inset-top,0px);z-index:6;background:var(--bg);padding-block:6px}
+.menu-btn{width:100%;display:flex;align-items:center;gap:10px;padding:12px 14px;border:1px solid var(--ink);border-radius:12px;background:var(--ink);color:var(--bg);font:inherit;font-family:var(--display);font-weight:700;font-size:1rem;cursor:pointer;text-align:left}
+.menu-btn #menu-actual{flex:1}
+.menu-flecha{transition:transform .15s}
+nav.menu.abierto .menu-flecha{transform:rotate(180deg)}
+.tabbar{display:none;flex-direction:column;gap:4px;margin-top:6px;padding:6px;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.15)}
+nav.menu.abierto .tabbar{display:flex;position:absolute;left:0;right:0}
+.tabbar a{display:flex;align-items:center;gap:12px;font-family:var(--display);font-weight:600;font-size:1rem;text-decoration:none;color:var(--ink);padding:12px 12px;border-radius:10px}
+.tabbar a:hover{background:var(--bg)}
+.tabbar .ico{width:1.6em;text-align:center;font-size:1.1rem}
+.tabbar a[aria-current="page"]{background:var(--ink);color:var(--bg)}
+@media (min-width:900px){
+  .wrap{max-width:1120px}
+  #v-app{grid-template-columns:230px minmax(0,1fr);align-items:start;column-gap:20px}
+  #v-app > header{grid-column:1/-1}
+  nav.menu{grid-column:1;grid-row:2;top:12px;padding:0}
+  .menu-btn{display:none}
+  .tabbar,nav.menu.abierto .tabbar{display:flex;position:static;margin:0;box-shadow:none}
+  #v-app > .view{grid-column:2;grid-row:2;min-width:0}
+}
 a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 section.view{display:grid;gap:16px}
 .panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;display:grid;gap:12px;min-width:0}
