@@ -570,6 +570,7 @@ function pintarFiados() {
       <div class="amt">${money(c.saldo)}</div>
       <div class="acts">
         <button class="btn small" type="button" data-estado="${c.id}">Estado de cuenta</button>
+        <button class="btn small" type="button" data-detalle="${c.id}">Detalle de compras</button>
         ${Number(c.saldo) > 0 ? `<button class="btn small" type="button" data-cobro="${c.id}">Preparar mensaje de cobro</button>` : ""}
       </div>
     </div>`;
@@ -629,7 +630,52 @@ async function estadoDeCuenta(c, boton) {
   ].join("\n");
   mostrarMensaje(c, "Estado de cuenta de " + c.nombre, txt);
 }
+// Detalle de compras al crédito, agrupado por fecha (para cuando el cliente pide la factura)
+const MAX_COMPRAS_DETALLE = 80;
+async function detalleCompras(c, boton) {
+  boton.disabled = true;
+  const { data, error } = await sb.from("movimientos").select("fecha,tipo,descripcion,monto")
+    .eq("negocio_id", S.negocio.id).eq("cliente_id", c.id).in("tipo", ["fiado", "abono"])
+    .order("fecha").order("created_at").limit(2000);
+  boton.disabled = false;
+  if (error) { toast(traducirError(error)); return; }
+  const movs = data || [];
+  const compras = movs.filter((m) => m.tipo === "fiado");
+  const visibles = compras.slice(-MAX_COMPRAS_DETALLE);
+  const nombre = c.nombre.split(" ").slice(0, 2).join(" ");
+  const saldo = Number(c.saldo);
+  const porFecha = new Map();
+  visibles.forEach((m) => { if (!porFecha.has(m.fecha)) porFecha.set(m.fecha, []); porFecha.get(m.fecha).push(m); });
+  const bloques = [];
+  porFecha.forEach((lista, fecha) => {
+    const sub = lista.reduce((s, m) => s + Number(m.monto), 0);
+    bloques.push([
+      `*${fechaLarga(fecha)}${partes(fecha).y !== partes(hoyLocal()).y ? " de " + partes(fecha).y : ""}*`,
+      ...lista.map((m) => `• ${String(m.descripcion || "Compra").slice(0, 60)}: ${money(m.monto)}`),
+      lista.length > 1 ? `Total del día: ${money(sub)}` : null,
+    ].filter(Boolean).join("\n"));
+  });
+  const totComprado = compras.reduce((s, m) => s + Number(m.monto), 0);
+  const totAbonado = movs.filter((m) => m.tipo === "abono").reduce((s, m) => s + Number(m.monto), 0);
+  const txt = [
+    `Buenas, ${nombre}. Le saluda ${S.negocio.nombre}.`,
+    ``,
+    `Como nos pidió, le compartimos el *detalle de sus compras al crédito*:`,
+    ``,
+    compras.length > visibles.length ? `(Se muestran las últimas ${visibles.length} compras)\n` : null,
+    compras.length ? bloques.join("\n\n") : `No tiene compras al crédito registradas.`,
+    ``,
+    `Total comprado al crédito: ${money(totComprado)}`,
+    `Total abonado: ${money(totAbonado)}`,
+    saldo < -0.004 ? `*Saldo a su favor: ${money(-saldo)}*` : `*Saldo actual: ${money(saldo)}*`,
+    ``,
+    `Cualquier duda, con gusto le atendemos. Muchas gracias por su preferencia.`,
+  ].filter((x) => x !== null).join("\n");
+  mostrarMensaje(c, "Detalle de compras de " + c.nombre, txt);
+}
 $("clientes").addEventListener("click", (e) => {
+  const bd = e.target.closest("[data-detalle]");
+  if (bd) { const c = S.saldos.find((x) => x.id === bd.dataset.detalle); if (c) detalleCompras(c, bd); return; }
   const be = e.target.closest("[data-estado]");
   if (be) { const c = S.saldos.find((x) => x.id === be.dataset.estado); if (c) estadoDeCuenta(c, be); return; }
   const b = e.target.closest("[data-cobro]"); if (!b) return;
