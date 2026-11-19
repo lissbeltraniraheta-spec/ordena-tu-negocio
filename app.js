@@ -768,7 +768,6 @@ async function pintarCaja() {
     nota.textContent = "Se suman todos los movimientos de esos días. Escriba el efectivo que hay en la gaveta al final del último día.";
   } else nota.hidden = true;
   revisarCaja();
-  if (!$("h-mes").value) $("h-mes").value = S.fecha.slice(0, 7);
   pintarHistorial();
 
   const [inicioMes] = rangoMes(S.fecha);
@@ -814,17 +813,24 @@ $("b-cierre").addEventListener("click", async () => {
   b.disabled = false;
   if (error) { setSt("cierre-st", traducirError(error), "err"); return; }
   setSt("cierre-st", "Cierre " + (t.desde === t.hasta ? "del " : "") + textoRango(t.desde, t.hasta) + " guardado.", "ok");
-  $("h-mes").value = t.hasta.slice(0, 7);
+  $("h-mes").value = "";
   pintarCaja();
 });
 $("h-mes").addEventListener("change", pintarHistorial);
+$("h-ultimos").addEventListener("click", () => { $("h-mes").value = ""; pintarHistorial(); });
 async function pintarHistorial() {
-  const mes = $("h-mes").value || S.fecha.slice(0, 7);
-  const [desde, hasta] = rangoMes(mes + "-01");
-  const { data, error } = await sb.from("cierres").select("fecha,fecha_desde,esperado,contado,diferencia")
-    .eq("negocio_id", S.negocio.id).gte("fecha", desde).lte("fecha", hasta).order("fecha", { ascending: false });
+  // Sin mes elegido: los últimos 10 cierres guardados (aunque sean de meses distintos). Con mes: todo ese mes.
+  const mes = $("h-mes").value;
+  let q = sb.from("cierres").select("fecha,fecha_desde,esperado,contado,diferencia").eq("negocio_id", S.negocio.id);
+  if (mes) { const [desde, hasta] = rangoMes(mes + "-01"); q = q.gte("fecha", desde).lte("fecha", hasta); }
+  q = q.order("fecha", { ascending: false });
+  if (!mes) q = q.limit(10);
+  const { data, error } = await q;
   if (error) { toast(traducirError(error)); return; }
   const filas = data || [];
+  $("h-ultimos").hidden = !mes;
+  $("h-titulo").textContent = mes ? "Cierres de este mes" : "Últimos 10 cierres";
+  $("h-vacio").textContent = mes ? "No hay cierres guardados en este mes." : "Todavía no hay cierres guardados.";
   $("h-vacio").hidden = filas.length > 0;
   $("historial").innerHTML = filas.map((c) => {
     const d = Number(c.diferencia);

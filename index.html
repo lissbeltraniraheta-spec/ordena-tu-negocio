@@ -270,7 +270,11 @@
       <div class="panel">
         <div class="row between">
           <h3>Historial de cierres</h3>
-          <label class="inline" for="h-mes">Mes <input id="h-mes" type="month"></label>
+          <label class="inline" for="h-mes">Ver un mes <input id="h-mes" type="month"></label>
+        </div>
+        <div class="row between">
+          <p class="muted" id="h-titulo">Últimos 10 cierres</p>
+          <button class="btn small" type="button" id="h-ultimos" hidden>Ver los últimos 10</button>
         </div>
         <div class="tabla-scroll">
           <table class="historial" aria-label="Historial de cierres de caja">
