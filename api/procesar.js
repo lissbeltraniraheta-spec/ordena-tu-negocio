@@ -70,7 +70,7 @@ async function llamarGemini(payload, inicio) {
   throw new Error(`La IA no pudo leer el archivo: ${ultimo.msg}`);
 }
 const MAX_BYTES = 15 * 1024 * 1024;
-const TIPOS = ["contado", "fiado", "abono", "gasto", "retiro", "compra"];
+const TIPOS = ["contado", "fiado", "abono", "gasto", "retiro", "compra", "compra_credito"];
 
 // Formatos que Gemini acepta tal cual; los demás se traducen al más cercano.
 const MIME_GEMINI = {
@@ -105,7 +105,8 @@ Tipos:
 - "contado": venta pagada al momento.
 - "fiado": venta al crédito, fiada o apuntada a un cliente.
 - "abono": un cliente paga parte o todo lo que debe.
-- "compra": mercadería o producto que el negocio compra a un proveedor para venderlo.
+- "compra": mercadería o producto que el negocio compra a un proveedor para venderlo y paga en el momento.
+- "compra_credito": mercadería que el negocio recibe del proveedor y le pagará después (al crédito, a plazo, "queda debiendo").
 - "gasto": otro pago del negocio (flete, luz, agua, alquiler, sueldo).
 - "retiro": dinero que el dueño saca para su casa o uso personal.
 Clientes conocidos del negocio: ${clientes.length ? clientes.join(", ") : "(ninguno todavía)"}.
@@ -114,7 +115,7 @@ Si en una línea no se distingue el monto, no la incluyas y explícalo en "nota"
 Si ${tipo === "foto" ? "la imagen no es un cuaderno o lista de ventas" : "el audio no habla de ventas o pagos"}, devuelve "lineas" vacío y dilo en "nota".
 Responde solo con JSON con esta forma:
 {"transcripcion": ${tipo === "audio" ? '"texto del audio"' : "null"}, "lineas": [{"tipo": "fiado", "descripcion": "Cemento 2 bolsas", "monto": 19, "cliente": "Doña Rosa"}], "nota": ""}
-"cliente" es null en contado, compra, gasto y retiro. "nota" es una frase corta en español o vacía.`;
+"cliente" es null en contado, compra, compra_credito, gasto y retiro. "nota" es una frase corta en español o vacía.`;
 }
 
 function limpiarResultado(r) {

@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&display=swap">
-<link rel="stylesheet" href="/app.css?v=1795056807">
+<link rel="stylesheet" href="/app.css?v=1795057086">
 </head>
 <body>
 <div class="wrap">
@@ -111,9 +111,11 @@
         <div class="kpi main"><span class="eyebrow">Total vendido</span><b class="num" id="k-vendido">$0.00</b></div>
         <div class="kpi"><span class="eyebrow">Ventas al contado</span><b class="num" id="k-contado">$0.00</b></div>
         <div class="kpi"><span class="eyebrow">Ventas al crédito</span><b class="num" id="k-fiado">$0.00</b></div>
-        <div class="kpi"><span class="eyebrow">Compras</span><b class="num" id="k-compras">$0.00</b></div>
-        <div class="kpi"><span class="eyebrow">Gastos</span><b class="num" id="k-gastos">$0.00</b></div>
         <div class="kpi"><span class="eyebrow">Abonos</span><b class="num" id="k-abonos">$0.00</b></div>
+        <div class="kpi main compra"><span class="eyebrow">Total comprado</span><b class="num" id="k-comprado">$0.00</b></div>
+        <div class="kpi"><span class="eyebrow">Compras al contado</span><b class="num" id="k-compras">$0.00</b></div>
+        <div class="kpi"><span class="eyebrow">Compras al crédito</span><b class="num" id="k-compras-cred">$0.00</b></div>
+        <div class="kpi"><span class="eyebrow">Gastos</span><b class="num" id="k-gastos">$0.00</b></div>
       </div>
 
       <div class="two">
@@ -180,7 +182,8 @@
               <option value="contado">Venta al contado</option>
               <option value="fiado">Venta al crédito</option>
               <option value="abono">Abono de cliente</option>
-              <option value="compra">Compra de mercadería</option>
+              <option value="compra">Compra al contado</option>
+              <option value="compra_credito">Compra al crédito</option>
               <option value="gasto">Gasto del negocio</option>
               <option value="retiro">Retiro del dueño</option>
             </select>
@@ -331,6 +334,6 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="/config.js"></script>
-<script src="/app.js?v=1795056807"></script>
+<script src="/app.js?v=1795057086"></script>
 </body>
 </html>
