@@ -251,12 +251,13 @@ function totales(lista) {
   return t;
 }
 
-/* ---------- Ventas del día ---------- */
+/* ---------- Movimientos del día ---------- */
 function pintarHoy() {
   const t = totales();
   $("k-vendido").textContent = money(t.contado + t.fiado);
   $("k-contado").textContent = money(t.contado);
   $("k-fiado").textContent = money(t.fiado);
+  $("k-gastos").textContent = money(t.gasto);
   $("k-abonos").textContent = money(t.abono);
   $("t-movs").textContent = S.fecha === hoyLocal() ? "Movimientos de hoy" : "Movimientos del " + fechaLarga(S.fecha);
   $("n-movs").textContent = S.movs.length ? S.movs.length + " anotados" : "";

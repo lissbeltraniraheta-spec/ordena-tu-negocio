@@ -1,6 +1,6 @@
 # Ordena tu Negocio
 
-App web para negocios pequeños: ventas del día, fiados, cierre de caja y expediente para crédito.
+App web para negocios pequeños: movimientos del día, ventas al crédito, cierre de caja y expediente para crédito.
 El dueño puede anotar a mano, **mandar la foto del cuaderno** o **grabar / subir una nota de voz**;
 la IA (Google Gemini) los convierte en movimientos que el dueño revisa antes de guardar.
 

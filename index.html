@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&display=swap">
-<link rel="stylesheet" href="/app.css?v=1795055933">
+<link rel="stylesheet" href="/app.css?v=1795056514">
 </head>
 <body>
 <div class="wrap">
@@ -97,7 +97,7 @@
 
     <nav class="tabs" aria-label="Secciones">
       <div class="tabbar">
-        <a href="#hoy" data-view="hoy">Ventas del día</a>
+        <a href="#hoy" data-view="hoy">Movimientos del día</a>
         <a href="#fiados" data-view="fiados">Al crédito</a>
         <a href="#caja" data-view="caja">Cierre de caja</a>
         <a href="#archivo" data-view="archivo">Fotos y audios</a>
@@ -108,9 +108,10 @@
     <!-- HOY -->
     <section class="view" id="v-hoy">
       <div class="kpis">
-        <div class="kpi main"><span class="eyebrow">Vendido</span><b class="num" id="k-vendido">$0.00</b></div>
-        <div class="kpi"><span class="eyebrow">Al contado</span><b class="num" id="k-contado">$0.00</b></div>
-        <div class="kpi"><span class="eyebrow">Al crédito</span><b class="num" id="k-fiado">$0.00</b></div>
+        <div class="kpi main"><span class="eyebrow">Total vendido</span><b class="num" id="k-vendido">$0.00</b></div>
+        <div class="kpi"><span class="eyebrow">Ventas al contado</span><b class="num" id="k-contado">$0.00</b></div>
+        <div class="kpi"><span class="eyebrow">Ventas al crédito</span><b class="num" id="k-fiado">$0.00</b></div>
+        <div class="kpi"><span class="eyebrow">Gastos</span><b class="num" id="k-gastos">$0.00</b></div>
         <div class="kpi"><span class="eyebrow">Abonos</span><b class="num" id="k-abonos">$0.00</b></div>
       </div>
 
@@ -328,6 +329,6 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="/config.js"></script>
-<script src="/app.js?v=1795055933"></script>
+<script src="/app.js?v=1795056514"></script>
 </body>
 </html>
