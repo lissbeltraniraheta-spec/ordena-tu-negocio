@@ -48,6 +48,8 @@ Ver `README.md` para la arquitectura.
 - Cambios pequeños y concretos, uno por commit, con mensaje en español que diga qué cambia para el usuario.
 - Cambios a la base de datos: como migración nueva en `supabase/migrations/`, nunca editando una que ya se aplicó.
 - Antes de publicar, comprobar al menos: `node --check app.js` y `node --check api/procesar.js`.
+- Si cambian `app.js` o `app.css`, subir el número `?v=` de esos archivos en `index.html` (por ejemplo, la hora actual).
+  Si no, los teléfonos, sobre todo el navegador de WhatsApp, siguen usando la versión vieja.
 - Después de publicar, verificar en el celular: entrar, subir una foto, ver la lista "Revise antes de guardar"
   y tocar "Guardar en el registro". Si la IA falla, revisar los registros de Vercel (`[gemini] ...`).
 - La IA de Gemini a veces está saturada (error 503 o tarda mucho). La función ya prueba varios modelos
