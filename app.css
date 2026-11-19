@@ -98,7 +98,7 @@ form.add{display:grid;gap:10px;grid-template-columns:1fr 1fr}
 form.add .full{grid-column:1/-1}
 .cliente{display:grid;grid-template-columns:1fr auto;gap:6px 12px;padding:12px 0;border-top:1px solid var(--line)}
 .cliente:first-of-type{border-top:0}
-.cliente .acts{grid-column:1/-1}
+.cliente .acts{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px}
 .msg{background:var(--bg);border:1px dashed var(--line);border-radius:10px;padding:12px;white-space:pre-wrap;font-size:.95rem}
 table.cuenta{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
 table.cuenta td{padding:7px 0;border-top:1px solid var(--line)}

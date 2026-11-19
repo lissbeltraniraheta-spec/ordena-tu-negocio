@@ -568,24 +568,76 @@ function pintarFiados() {
     return `<div class="cliente">
       <div><strong>${esc(c.nombre)}</strong>${c.telefono ? ` <span class="muted num">· ${esc(c.telefono)}</span>` : ""}<br><span class="chip ${cls}">${txt}</span></div>
       <div class="amt">${money(c.saldo)}</div>
-      ${Number(c.saldo) > 0 ? `<div class="acts"><button class="btn small" type="button" data-cobro="${c.id}">Preparar mensaje de cobro</button></div>` : ""}
+      <div class="acts">
+        <button class="btn small" type="button" data-estado="${c.id}">Estado de cuenta</button>
+        ${Number(c.saldo) > 0 ? `<button class="btn small" type="button" data-cobro="${c.id}">Preparar mensaje de cobro</button>` : ""}
+      </div>
     </div>`;
   }).join("");
 }
 $("cl-filtro").addEventListener("change", () => { $("p-msg").hidden = true; pintarFiados(); });
 $("cl-buscar").addEventListener("input", () => { $("p-msg").hidden = true; pintarFiados(); });
-$("clientes").addEventListener("click", (e) => {
-  const b = e.target.closest("[data-cobro]"); if (!b) return;
-  const c = S.saldos.find((x) => x.id === b.dataset.cobro);
-  const nombre = c.nombre.split(" ").slice(0, 2).join(" ");
-  const txt = `Buenas, ${nombre}. Le saluda ${S.negocio.nombre}.\n\nLe compartimos su estado de cuenta al ${fechaLarga(hoyLocal())}:\nSaldo pendiente: ${money(c.saldo)}\n\nPuede abonar en el negocio o por transferencia, lo que le quede mejor. Muchas gracias por su preferencia.`;
-  $("msg-title").textContent = "Mensaje de cobro para " + c.nombre;
+function mostrarMensaje(c, titulo, txt) {
+  $("msg-title").textContent = titulo;
   $("msg").textContent = txt;
   let tel = String(c.telefono || "").replace(/\D/g, "");
   if (tel.length === 8) tel = "503" + tel;
   $("b-wa").href = `https://wa.me/${tel}?text=${encodeURIComponent(txt)}`;
   $("p-msg").hidden = false;
   $("p-msg").scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+}
+// Estado de cuenta: compras al crédito y abonos con el saldo después de cada uno
+const MAX_LINEAS_ESTADO = 30;
+async function estadoDeCuenta(c, boton) {
+  boton.disabled = true;
+  const { data, error } = await sb.from("movimientos").select("fecha,tipo,descripcion,monto")
+    .eq("negocio_id", S.negocio.id).eq("cliente_id", c.id).in("tipo", ["fiado", "abono"])
+    .order("fecha").order("created_at").limit(1000);
+  boton.disabled = false;
+  if (error) { toast(traducirError(error)); return; }
+  const movs = data || [];
+  const nombre = c.nombre.split(" ").slice(0, 2).join(" ");
+  const mny = (v) => (v < -0.004 ? `−${money(-v)}` : money(Math.abs(v)));
+  const fechaC = (f) => { const { d, m, y } = partes(f); return `${d} ${MESES_C[m - 1]} ${y}`; };
+  const totComprado = movs.filter((m) => m.tipo === "fiado").reduce((s, m) => s + Number(m.monto), 0);
+  const totAbonado = movs.filter((m) => m.tipo === "abono").reduce((s, m) => s + Number(m.monto), 0);
+  const saldo = Number(c.saldo);
+  const visibles = movs.slice(-MAX_LINEAS_ESTADO);
+  const deltaVisible = visibles.reduce((s, m) => s + (m.tipo === "fiado" ? 1 : -1) * Number(m.monto), 0);
+  // Si se muestra todo el historial se parte de cero; si no, del saldo que había antes de lo que se muestra
+  let corrido = movs.length > visibles.length ? Math.round((saldo - deltaVisible) * 100) / 100 : 0;
+  const lineas = [];
+  if (movs.length > visibles.length) lineas.push(`Saldo anterior: ${mny(corrido)}`);
+  visibles.forEach((m) => {
+    const compra = m.tipo === "fiado";
+    corrido = Math.round((corrido + (compra ? 1 : -1) * Number(m.monto)) * 100) / 100;
+    const det = compra ? `Compra: ${String(m.descripcion || "").slice(0, 40)}` : "Abono";
+    lineas.push(`• ${fechaC(m.fecha)} · ${det} · ${compra ? "+" : "−"}${money(m.monto)} → saldo ${mny(corrido)}`);
+  });
+  const txt = [
+    `Buenas, ${nombre}. Le saluda ${S.negocio.nombre}.`,
+    ``,
+    `*Estado de cuenta al ${fechaLarga(hoyLocal())}*`,
+    ``,
+    movs.length ? (movs.length > visibles.length ? `Últimos ${visibles.length} movimientos:` : `Movimientos:`) : `No tiene compras al crédito ni abonos registrados.`,
+    ...lineas,
+    ``,
+    `Total comprado al crédito: ${money(totComprado)}`,
+    `Total abonado: ${money(totAbonado)}`,
+    saldo < -0.004 ? `*Saldo a su favor: ${money(-saldo)}*` : `*Saldo actual: ${money(saldo)}*`,
+    ``,
+    saldo > 0.004 ? `Puede abonar en el negocio o por transferencia, lo que le quede mejor. Muchas gracias por su preferencia.` : `Su cuenta está al día. Muchas gracias por su preferencia.`,
+  ].join("\n");
+  mostrarMensaje(c, "Estado de cuenta de " + c.nombre, txt);
+}
+$("clientes").addEventListener("click", (e) => {
+  const be = e.target.closest("[data-estado]");
+  if (be) { const c = S.saldos.find((x) => x.id === be.dataset.estado); if (c) estadoDeCuenta(c, be); return; }
+  const b = e.target.closest("[data-cobro]"); if (!b) return;
+  const c = S.saldos.find((x) => x.id === b.dataset.cobro);
+  const nombre = c.nombre.split(" ").slice(0, 2).join(" ");
+  const txt = `Buenas, ${nombre}. Le saluda ${S.negocio.nombre}.\n\nLe compartimos su estado de cuenta al ${fechaLarga(hoyLocal())}:\nSaldo pendiente: ${money(c.saldo)}\n\nPuede abonar en el negocio o por transferencia, lo que le quede mejor. Muchas gracias por su preferencia.`;
+  mostrarMensaje(c, "Mensaje de cobro para " + c.nombre, txt);
 });
 $("b-copiar").addEventListener("click", () => {
   const txt = $("msg").textContent;
