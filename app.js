@@ -706,8 +706,9 @@ function textoRango(desde, hasta) {
   return a.y === b.y && a.m === b.m ? `del ${a.d} al ${b.d} de ${MESES[b.m - 1]}` : `del ${a.d} de ${MESES[a.m - 1]} al ${b.d} de ${MESES[b.m - 1]}`;
 }
 function rangoCorto(desde, hasta) {
-  const a = partes(desde), b = partes(hasta);
+  const b = partes(hasta);
   if (!desde || desde === hasta) return `${b.d} ${MESES_C[b.m - 1]}`;
+  const a = partes(desde);
   return a.m === b.m ? `${a.d}–${b.d} ${MESES_C[b.m - 1]}` : `${a.d} ${MESES_C[a.m - 1]}–${b.d} ${MESES_C[b.m - 1]}`;
 }
 function cambioRango(e) {
@@ -818,25 +819,52 @@ $("b-cierre").addEventListener("click", async () => {
 });
 $("h-mes").addEventListener("change", pintarHistorial);
 $("h-ultimos").addEventListener("click", () => { $("h-mes").value = ""; pintarHistorial(); });
+const DIAS_HISTORIAL = 10;
+const sumarDias = (f, n) => { const { y, m, d } = partes(f); const x = new Date(y, m - 1, d + n); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`; };
+const celdaDif = (d) => Math.abs(d) < 0.01 ? `<span class="dif-ok">Cuadra</span>` : d > 0 ? `<span class="dif-ok">+${money(d)}</span>` : `<span class="dif-bad">−${money(-d)}</span>`;
 async function pintarHistorial() {
-  // Sin mes elegido: los últimos 10 cierres guardados (aunque sean de meses distintos). Con mes: todo ese mes.
   const mes = $("h-mes").value;
-  let q = sb.from("cierres").select("fecha,fecha_desde,esperado,contado,diferencia").eq("negocio_id", S.negocio.id);
-  if (mes) { const [desde, hasta] = rangoMes(mes + "-01"); q = q.gte("fecha", desde).lte("fecha", hasta); }
-  q = q.order("fecha", { ascending: false });
-  if (!mes) q = q.limit(10);
-  const { data, error } = await q;
-  if (error) { toast(traducirError(error)); return; }
-  const filas = data || [];
   $("h-ultimos").hidden = !mes;
-  $("h-titulo").textContent = mes ? "Cierres de este mes" : "Últimos 10 cierres";
-  $("h-vacio").textContent = mes ? "No hay cierres guardados en este mes." : "Todavía no hay cierres guardados.";
-  $("h-vacio").hidden = filas.length > 0;
-  $("historial").innerHTML = filas.map((c) => {
-    const d = Number(c.diferencia);
-    const dif = Math.abs(d) < 0.01 ? `<span class="dif-ok">Cuadra</span>` : d > 0 ? `<span class="dif-ok">+${money(d)}</span>` : `<span class="dif-bad">−${money(-d)}</span>`;
-    return `<tr><td>${rangoCorto(c.fecha_desde, c.fecha)}</td><td>${money(c.esperado)}</td><td>${money(c.contado)}</td><td>${dif}</td></tr>`;
-  }).join("");
+  $("h-titulo").textContent = mes ? "Cierres guardados en este mes" : `Últimos ${DIAS_HISTORIAL} días`;
+  if (mes) {
+    // Un mes elegido: los cierres que se guardaron en ese mes
+    const [desde, hasta] = rangoMes(mes + "-01");
+    const { data, error } = await sb.from("cierres").select("fecha,fecha_desde,esperado,contado,diferencia")
+      .eq("negocio_id", S.negocio.id).gte("fecha", desde).lte("fecha", hasta).order("fecha", { ascending: false });
+    if (error) { toast(traducirError(error)); return; }
+    const filas = data || [];
+    $("h-vacio").textContent = "No hay cierres guardados en este mes.";
+    $("h-vacio").hidden = filas.length > 0;
+    $("historial").innerHTML = filas.map((c) => `<tr><td>${rangoCorto(c.fecha_desde, c.fecha)}</td><td>${money(c.esperado)}</td><td>${money(c.contado)}</td><td>${celdaDif(Number(c.diferencia))}</td></tr>`).join("");
+    return;
+  }
+  // Sin mes: siempre los últimos 10 días, con o sin cierre guardado
+  const hasta = hoyLocal(), desde = sumarDias(hasta, -(DIAS_HISTORIAL - 1));
+  const [rc, rm] = await Promise.all([
+    sb.from("cierres").select("fecha,fecha_desde,esperado,contado,diferencia").eq("negocio_id", S.negocio.id)
+      .gte("fecha", desde).lte("fecha", sumarDias(hasta, MAX_DIAS_CIERRE)).order("fecha"),
+    sb.from("movimientos").select("fecha,tipo,monto").eq("negocio_id", S.negocio.id).gte("fecha", desde).lte("fecha", hasta).limit(5000),
+  ]);
+  if (rc.error || rm.error) { toast(traducirError(rc.error || rm.error)); return; }
+  const cierres = rc.data || [];
+  const inicial = Number(S.negocio.efectivo_inicial || 0);
+  const filas = [];
+  for (let i = 0; i < DIAS_HISTORIAL; i++) {
+    const dia = sumarDias(hasta, -i);
+    const propio = cierres.find((c) => c.fecha === dia);
+    const dentro = cierres.find((c) => c.fecha_desde && c.fecha_desde <= dia && c.fecha > dia);
+    if (propio) {
+      filas.push(`<tr><td>${rangoCorto(propio.fecha_desde, propio.fecha)}</td><td>${money(propio.esperado)}</td><td>${money(propio.contado)}</td><td>${celdaDif(Number(propio.diferencia))}</td></tr>`);
+    } else if (dentro) {
+      filas.push(`<tr class="sin-cierre"><td>${rangoCorto(dia, dia)}</td><td colspan="3" class="muted">Incluido en el cierre del ${rangoCorto(dentro.fecha_desde, dentro.fecha)}</td></tr>`);
+    } else {
+      const t = totales((rm.data || []).filter((m) => m.fecha === dia));
+      const esperado = inicial + t.contado + t.abono - t.gasto - t.retiro;
+      filas.push(`<tr class="sin-cierre"><td>${rangoCorto(dia, dia)}</td><td>${money(esperado)}</td><td><span class="dif-bad">Sin cierre</span></td><td>—</td></tr>`);
+    }
+  }
+  $("h-vacio").hidden = true;
+  $("historial").innerHTML = filas.join("");
 }
 $("c-inicial").addEventListener("change", async (e) => {
   const v = Math.max(0, Number(e.target.value) || 0);

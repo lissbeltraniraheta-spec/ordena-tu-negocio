@@ -136,3 +136,7 @@ table.historial th:not(:first-child),table.historial td:not(:first-child){text-a
 .dif-bad{color:var(--bad);font-weight:700}
 .archivo-borrado{font-size:.85rem}
 .cliente-pick{display:grid;gap:10px}
+tr.sin-cierre td{color:var(--muted)}
+table.historial{font-size:.85rem}
+table.historial th,table.historial td{padding-right:4px}
+table.historial td[colspan]{white-space:normal;text-align:left}
