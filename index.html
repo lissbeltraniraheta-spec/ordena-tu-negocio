@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&display=swap">
-<link rel="stylesheet" href="/app.css?v=1795057242">
+<link rel="stylesheet" href="/app.css?v=1795057410">
 </head>
 <body>
 <div class="wrap">
@@ -101,6 +101,7 @@
         <a href="#fiados" data-view="fiados">Al crédito</a>
         <a href="#caja" data-view="caja">Cierre de caja</a>
         <a href="#archivo" data-view="archivo">Fotos y audios</a>
+        <a href="#buscar" data-view="buscar">Consultar</a>
         <a href="#expediente" data-view="expediente">Expediente</a>
       </div>
     </nav>
@@ -320,6 +321,58 @@
       </div>
     </section>
 
+    <!-- CONSULTAR -->
+    <section class="view" id="v-buscar" hidden>
+      <div class="panel">
+        <div>
+          <h3>Consultar movimientos</h3>
+          <p class="muted">Busque cualquier venta, abono, compra, gasto o retiro guardado.</p>
+        </div>
+        <div class="rapidos" role="group" aria-label="Fechas rápidas">
+          <button class="btn small" type="button" data-rango="hoy">Hoy</button>
+          <button class="btn small" type="button" data-rango="7">Últimos 7 días</button>
+          <button class="btn small" type="button" data-rango="mes">Este mes</button>
+          <button class="btn small" type="button" data-rango="pasado">Mes pasado</button>
+        </div>
+        <form class="add" id="f-buscar">
+          <label for="b-desde">Desde<input id="b-desde" type="date" required></label>
+          <label for="b-hasta">Hasta<input id="b-hasta" type="date" required></label>
+          <label for="b-tipo">Tipo
+            <select id="b-tipo">
+              <option value="">Todos los movimientos</option>
+              <option value="ventas">Todas las ventas</option>
+              <option value="compras">Todas las compras</option>
+              <option value="contado">Ventas al contado</option>
+              <option value="fiado">Ventas al crédito</option>
+              <option value="abono">Abonos de clientes</option>
+              <option value="compra">Compras al contado</option>
+              <option value="compra_credito">Compras al crédito</option>
+              <option value="pago_compra">Pagos a proveedores</option>
+              <option value="gasto">Gastos del negocio</option>
+              <option value="retiro">Retiros del dueño</option>
+            </select>
+          </label>
+          <label for="b-cliente">Cliente
+            <select id="b-cliente"><option value="">Todos</option></select>
+          </label>
+          <label class="full" for="b-texto">Palabra a buscar (opcional)
+            <input id="b-texto" type="search" placeholder="Ej. cemento, flete, Rosa" autocomplete="off">
+          </label>
+          <button class="btn primary full" type="submit">Buscar</button>
+          <p class="estado full" id="b-st" role="status"></p>
+        </form>
+      </div>
+      <div class="panel" id="b-res" hidden>
+        <div class="row between">
+          <h3 id="b-titulo">Resultados</h3>
+          <button class="btn small" type="button" id="b-csv">Descargar lista</button>
+        </div>
+        <div class="b-totales" id="b-totales"></div>
+        <div id="b-lista"></div>
+        <p class="muted vacio" id="b-vacio" hidden>No se encontró ningún movimiento con esos datos. Pruebe con otras fechas o quite la palabra a buscar.</p>
+      </div>
+    </section>
+
     <!-- EXPEDIENTE -->
     <section class="view" id="v-expediente" hidden>
       <div class="panel">
@@ -352,6 +405,6 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="/config.js"></script>
-<script src="/app.js?v=1795057242"></script>
+<script src="/app.js?v=1795057410"></script>
 </body>
 </html>

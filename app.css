@@ -166,3 +166,12 @@ table.historial td[colspan]{white-space:normal;text-align:left}
 .al-tag.lejos{background:var(--bg);color:var(--muted)}
 .al-lista .btn.confirm{background:var(--accent);color:#fff;border-color:var(--accent)}
 @media (max-width:420px){.al-lista li{grid-template-columns:1fr auto}.al-lista .al-tag{grid-column:1/-1;justify-self:start}}
+
+/* Consultar movimientos */
+.rapidos{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}
+.b-totales{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin:8px 0 4px}
+.b-totales div{background:var(--bg);border-radius:10px;padding:8px 10px;display:grid}
+.b-totales b{font-size:1.05rem}
+.b-fecha{margin:16px 0 2px;font-weight:700;font-size:.9rem;color:var(--muted);border-bottom:2px solid var(--line);padding-bottom:4px}
+#b-lista ul.list li{grid-template-columns:auto 1fr auto}
+.b-fecha::first-letter{text-transform:uppercase}

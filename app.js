@@ -1131,8 +1131,89 @@ async function pintarExpediente() {
   ].map(([a, b]) => `<div><span class="eyebrow">${a}</span><b class="num">${b}</b></div>`).join("");
 }
 
+/* ---------- Consultar movimientos ---------- */
+const MAX_CONSULTA = 5000;
+const GRUPOS_TIPO = { ventas: ["contado", "fiado"], compras: ["compra", "compra_credito"] };
+const SALIDAS = ["gasto", "retiro", "compra", "pago_compra"];
+let CONSULTA = [];
+function ponerRango(r) {
+  const hoy = hoyLocal(), { y, m } = partes(hoy);
+  let a = hoy, b = hoy;
+  if (r === "7") a = masDias(hoy, -6);
+  if (r === "mes") a = rangoMes(hoy)[0];
+  if (r === "pasado") [a, b] = rangoMes(fISO(new Date(y, m - 2, 1)));
+  $("b-desde").value = a; $("b-hasta").value = b;
+}
+function abrirConsulta() {
+  const hoy = hoyLocal();
+  $("b-desde").max = $("b-hasta").max = hoy;
+  if (!$("b-desde").value) ponerRango("mes");
+  const sel = $("b-cliente"), antes = sel.value;
+  sel.innerHTML = `<option value="">Todos</option>` + S.saldos.slice().sort((a, b) => a.nombre.localeCompare(b.nombre, "es"))
+    .map((c) => `<option value="${c.id}">${esc(c.nombre)}</option>`).join("");
+  sel.value = [...sel.options].some((o) => o.value === antes) ? antes : "";
+  if ($("b-res").hidden) consultar();
+}
+document.querySelectorAll("[data-rango]").forEach((b) => b.addEventListener("click", () => { ponerRango(b.dataset.rango); consultar(); }));
+$("f-buscar").addEventListener("submit", (e) => { e.preventDefault(); consultar(); });
+$("b-tipo").addEventListener("change", consultar);
+$("b-cliente").addEventListener("change", consultar);
+async function consultar() {
+  let a = $("b-desde").value, b = $("b-hasta").value;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(a) || !/^\d{4}-\d{2}-\d{2}$/.test(b)) { setSt("b-st", "Elija las dos fechas en el calendario.", "err"); return; }
+  if (a > b) { [a, b] = [b, a]; $("b-desde").value = a; $("b-hasta").value = b; }
+  const tipo = $("b-tipo").value, cliente = $("b-cliente").value, palabras = norm($("b-texto").value).split(/\s+/).filter(Boolean);
+  setSt("b-st", "Buscando...");
+  const filas = [];
+  try {
+    for (let i = 0; i < MAX_CONSULTA / 1000; i++) {
+      let q = sb.from("movimientos").select("id,fecha,hora,tipo,descripcion,monto,vence,origen,cliente_id,clientes(nombre)")
+        .eq("negocio_id", S.negocio.id).gte("fecha", a).lte("fecha", b);
+      if (GRUPOS_TIPO[tipo]) q = q.in("tipo", GRUPOS_TIPO[tipo]); else if (tipo) q = q.eq("tipo", tipo);
+      if (cliente) q = q.eq("cliente_id", cliente);
+      const { data, error } = await q.order("fecha", { ascending: false }).order("hora", { ascending: false }).order("id").range(i * 1000, i * 1000 + 999);
+      if (error) throw error;
+      filas.push(...(data || []));
+      if (!data || data.length < 1000) break;
+    }
+  } catch (err) { setSt("b-st", traducirError(err), "err"); return; }
+  CONSULTA = palabras.length
+    ? filas.filter((m) => { const t = norm(m.descripcion + " " + (m.clientes?.nombre || "") + " " + TIPOS[m.tipo]); return palabras.every((p) => t.includes(p)); })
+    : filas;
+  setSt("b-st", filas.length >= MAX_CONSULTA ? `Se muestran los primeros ${MAX_CONSULTA}. Elija menos días para ver todo.` : "");
+  pintarConsulta(a, b);
+}
+function pintarConsulta(a, b) {
+  $("b-res").hidden = false;
+  const n = CONSULTA.length;
+  $("b-titulo").textContent = `${n} ${n === 1 ? "movimiento" : "movimientos"} · ${a === b ? fechaC2(a) : `del ${fechaC2(a)} al ${fechaC2(b)}`}`;
+  $("b-vacio").hidden = n > 0; $("b-csv").hidden = !n;
+  const t = totales(CONSULTA);
+  const caja = [["Ventas al contado", t.contado], ["Ventas al crédito", t.fiado], ["Abonos", t.abono], ["Compras al contado", t.compra], ["Compras al crédito", t.compra_credito], ["Pagos a proveedores", t.pago_compra], ["Gastos", t.gasto], ["Retiros", t.retiro]];
+  $("b-totales").innerHTML = caja.filter(([, v]) => v > 0).map(([k, v]) => `<div><span class="eyebrow">${k}</span><b class="num">${money(v)}</b></div>`).join("");
+  const porFecha = new Map();
+  CONSULTA.forEach((m) => { if (!porFecha.has(m.fecha)) porFecha.set(m.fecha, []); porFecha.get(m.fecha).push(m); });
+  $("b-lista").innerHTML = [...porFecha].map(([f, lista]) => {
+    const { y } = partes(f), anio = y !== partes(hoyLocal()).y ? ` de ${y}` : "";
+    return `<p class="b-fecha">${fechaLarga(f)}${anio}</p><ul class="list">${lista.map((m) => {
+      const neg = SALIDAS.includes(m.tipo) ? "−" : "";
+      const extra = [String(m.hora || "").slice(0, 5), m.clientes ? esc(m.clientes.nombre) : "", m.vence ? "pagar el " + fechaC2(m.vence) : ""].filter(Boolean).join(" · ");
+      return `<li><span class="chip c-${m.tipo}">${TIPOS[m.tipo]}</span><span class="desc">${esc(m.descripcion)}<small class="num">${extra}</small></span><span class="amt">${neg}${money(m.monto)}</span></li>`;
+    }).join("")}</ul>`;
+  }).join("");
+}
+$("b-csv").addEventListener("click", () => {
+  const q = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const lineas = [["Fecha", "Hora", "Tipo", "Descripción", "Cliente", "Monto", "Fecha para pagar"].map(q).join(",")]
+    .concat(CONSULTA.map((m) => [m.fecha, String(m.hora || "").slice(0, 5), TIPOS[m.tipo], m.descripcion, m.clientes?.nombre || "", (SALIDAS.includes(m.tipo) ? -1 : 1) * Number(m.monto), m.vence || ""].map(q).join(",")));
+  const blob = new Blob(["﻿" + lineas.join("\r\n")], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = `movimientos-${$("b-desde").value}-al-${$("b-hasta").value}.csv`;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+});
+
 /* ---------- pestañas ---------- */
-const VISTAS = ["hoy", "fiados", "caja", "archivo", "expediente"];
+const VISTAS = ["hoy", "fiados", "caja", "archivo", "buscar", "expediente"];
 function mostrarTab() {
   if ($("v-app").hidden || !S.negocio) return;
   const v = VISTAS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "hoy";
@@ -1140,6 +1221,7 @@ function mostrarTab() {
   document.querySelectorAll(".tabbar a").forEach((a) => { if (a.dataset.view === v) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current"); });
   if (v === "caja") pintarCaja();
   if (v === "archivo") pintarArchivo();
+  if (v === "buscar") abrirConsulta();
   if (v === "expediente") pintarExpediente();
 }
 window.addEventListener("hashchange", mostrarTab);
