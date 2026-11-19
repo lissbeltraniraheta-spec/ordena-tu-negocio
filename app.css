@@ -140,36 +140,3 @@ tr.sin-cierre td{color:var(--muted)}
 table.historial{font-size:.85rem}
 table.historial th,table.historial td{padding-right:4px}
 table.historial td[colspan]{white-space:normal;text-align:left}
-
-/* Historial de cierres: vista en gráfico */
-.vista-sel{display:flex;max-width:320px;gap:0;margin:4px 0 10px;border:1px solid var(--line);border-radius:999px;overflow:hidden}
-.vista-sel .btn{border:0;border-radius:0;background:transparent;color:var(--muted);flex:1}
-.vista-sel .btn[aria-pressed="true"]{background:var(--accent);color:#fff}
-.h-resumen{margin:0 0 8px;padding:10px 12px;border-radius:12px;font-weight:600;line-height:1.35}
-.h-resumen.bien{background:var(--accent-soft);color:var(--accent)}
-.h-resumen.mal{background:var(--bad-soft);color:var(--bad)}
-.h-resumen.neutro{background:var(--bg);color:var(--muted)}
-.h-cuenta{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
-.h-chip{font-size:.8rem;padding:4px 10px;border-radius:999px}
-.dias-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
-.dia-card{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 2px;border-radius:12px;background:var(--bg);text-align:center;min-width:0}
-.dia-sem{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.02em}
-.dia-num{font-size:.8rem;font-weight:700;white-space:nowrap}
-.dia-icono{display:grid;place-items:center;width:38px;height:38px;border-radius:50%;font-size:1.3rem;font-weight:800;margin:4px 0 2px;color:#fff}
-.dia-txt{font-size:.72rem;font-weight:700;line-height:1.15;word-break:break-word}
-.dia-varios{font-size:.65rem;color:var(--muted);line-height:1.1}
-.e-cuadra .dia-icono,.e-sobra .dia-icono{background:var(--accent)}
-.e-falta .dia-icono{background:var(--bad)}
-.e-sin .dia-icono{background:transparent;border:2px dashed var(--muted);color:var(--muted)}
-.e-incluido .dia-icono{background:var(--line);color:var(--muted)}
-.dia-card.e-cuadra,.dia-card.e-sobra{background:var(--accent-soft)}
-.dia-card.e-falta{background:var(--bad-soft)}
-.e-cuadra .dia-txt,.e-sobra .dia-txt{color:var(--accent)}
-.e-falta .dia-txt{color:var(--bad)}
-.e-sin .dia-txt,.e-incluido .dia-txt{color:var(--muted)}
-.h-chip.e-cuadra,.h-chip.e-sobra{background:var(--accent-soft);color:var(--accent)}
-.h-chip.e-falta{background:var(--bad-soft);color:var(--bad)}
-.h-chip.e-sin{background:var(--bg);color:var(--muted)}
-.h-ayuda{font-size:.78rem;margin:10px 0 0}
-#h-grafico.sin-datos .dias-grid,#h-grafico.sin-datos .h-ayuda{display:none}
-@media (min-width:560px){.dias-grid{grid-template-columns:repeat(10,minmax(0,1fr))}}

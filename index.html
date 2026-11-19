@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&display=swap">
-<link rel="stylesheet" href="/app.css?v=1795055587">
+<link rel="stylesheet" href="/app.css?v=1795054698">
 </head>
 <body>
 <div class="wrap">
@@ -276,17 +276,7 @@
           <p class="muted" id="h-titulo">Últimos 10 días</p>
           <button class="btn small" type="button" id="h-ultimos" hidden>Ver los últimos 10 días</button>
         </div>
-        <div class="vista-sel" role="group" aria-label="Ver el historial como">
-          <button class="btn small" type="button" id="h-ver-graf" aria-pressed="true">Gráfico</button>
-          <button class="btn small" type="button" id="h-ver-tabla" aria-pressed="false">Tabla</button>
-        </div>
-        <div id="h-grafico">
-          <p class="h-resumen" id="h-resumen"></p>
-          <div class="h-cuenta" id="h-cuenta"></div>
-          <div class="dias-grid" id="h-dias"></div>
-          <p class="muted h-ayuda">Verde: la caja cuadró o sobró. Rojo: faltó dinero. Gris: no se hizo cierre ese día, o se cerró junto con otros días.</p>
-        </div>
-        <div class="tabla-scroll" id="h-tabla" hidden>
+        <div class="tabla-scroll">
           <table class="historial" aria-label="Historial de cierres de caja">
             <thead><tr><th>Fechas</th><th>Debía haber</th><th>Contado</th><th>Diferencia</th></tr></thead>
             <tbody id="historial"></tbody>
@@ -332,6 +322,6 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="/config.js"></script>
-<script src="/app.js?v=1795055587"></script>
+<script src="/app.js?v=1795054698"></script>
 </body>
 </html>
