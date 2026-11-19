@@ -421,6 +421,7 @@ $("cp-lista").addEventListener("click", async (e) => {
 function pintarHoy() {
   const t = totales();
   $("k-vendido").textContent = money(t.contado + t.fiado);
+  $("k-vendido-lbl").textContent = S.fecha === hoyLocal() ? "Vendido hoy" : "Vendido el " + fechaLarga(S.fecha);
   $("k-contado").textContent = money(t.contado);
   $("k-fiado").textContent = money(t.fiado);
   $("k-comprado").textContent = money(t.compra + t.compra_credito);
@@ -501,6 +502,20 @@ $("f-add").addEventListener("submit", async (e) => {
     await cargarTodo();
   } catch (err) { toast(traducirError(err)); }
 });
+
+/* ---------- Botones Foto / Voz / A mano ---------- */
+function abrirPanel(id, abrir) {
+  const panel = $(id), boton = $(id === "p-voz" ? "b-voz" : "b-mano");
+  const ver = abrir ?? panel.hidden;
+  panel.hidden = !ver; boton.setAttribute("aria-expanded", String(ver));
+  if (ver) {
+    panel.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "nearest" });
+    if (id === "p-mano") setTimeout(() => $("a-desc").focus({ preventScroll: true }), 250);
+  }
+}
+$("b-voz").addEventListener("click", () => abrirPanel("p-voz"));
+$("b-mano").addEventListener("click", () => abrirPanel("p-mano"));
+document.querySelectorAll("[data-cerrar]").forEach((b) => b.addEventListener("click", () => abrirPanel(b.dataset.cerrar, false)));
 
 /* ---------- Fotos ---------- */
 async function comprimirImagen(file) {
