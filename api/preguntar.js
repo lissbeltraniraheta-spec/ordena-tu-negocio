@@ -80,11 +80,11 @@ function armarDatos(negocio, movs, viejas, saldos, mensual, hoy) {
   const todas = [...viejas, ...movs];
   const pagadas = new Set(todas.filter((m) => m.paga_id).map((m) => m.paga_id));
   const porPagar = todas.filter((m) => m.tipo === "compra_credito" && !pagadas.has(m.id))
-    .map((m) => ({ compra: m.descripcion, monto: Number(m.monto), fecha: m.fecha, vence: m.vence || masDias(m.fecha, 30) }));
+    .map((m) => ({ compra: m.descripcion, proveedor: m.proveedor || "", monto: Number(m.monto), fecha: m.fecha, vence: m.vence || masDias(m.fecha, 30) }));
   const deben = saldos.filter((c) => Number(c.saldo) > 0).sort((a, b) => b.saldo - a.saldo)
     .map((c) => ({ cliente: c.nombre, debe: Number(c.saldo), primera_compra_al_credito: c.primer_fiado, ultimo_abono: c.ultimo_abono }));
   const nombreCliente = new Map(saldos.map((c) => [c.id, c.nombre]));
-  const detalle = movs.slice(-1500).map((m) => [m.fecha, NOMBRES[m.tipo] || m.tipo, m.descripcion.replace(/[|\n]/g, " "), Number(m.monto).toFixed(2),
+  const detalle = movs.slice(-1500).map((m) => [m.fecha, NOMBRES[m.tipo] || m.tipo, (m.proveedor ? m.proveedor + ": " : "") + m.descripcion.replace(/[|\n]/g, " "), Number(m.monto).toFixed(2),
     m.cliente_id ? nombreCliente.get(m.cliente_id) || "" : "", m.vence || ""].join(" | "));
   return [
     `Negocio: ${negocio.nombre}. Hoy es ${hoy}. Efectivo con que abre la caja cada día: $${Number(negocio.efectivo_inicial || 0).toFixed(2)}.`,
@@ -136,11 +136,11 @@ export default async function handler(req, res) {
 
     const desde = masDias(hoy, -89), desdeMes = masDias(hoy, -400).slice(0, 8) + "01";
     const [movs, saldos, mensual, viejasPorPagar] = await Promise.all([
-      leer(token, `movimientos?negocio_id=eq.${negocioId}&fecha=gte.${desde}&select=id,fecha,tipo,descripcion,monto,cliente_id,vence,paga_id&order=fecha.desc,hora.desc&limit=5000`).then((l) => l.reverse()),
+      leer(token, `movimientos?negocio_id=eq.${negocioId}&fecha=gte.${desde}&select=id,fecha,tipo,descripcion,proveedor,monto,cliente_id,vence,paga_id&order=fecha.desc,hora.desc&limit=5000`).then((l) => l.reverse()),
       leer(token, `saldos_clientes?negocio_id=eq.${negocioId}&select=id,nombre,saldo,primer_fiado,ultimo_abono`),
       leer(token, `resumen_mensual?negocio_id=eq.${negocioId}&mes=gte.${desdeMes}&select=mes,tipo,total`),
       // Compras al crédito y pagos más viejos que 90 días, para no olvidar deudas con proveedores
-      leer(token, `movimientos?negocio_id=eq.${negocioId}&fecha=lt.${desde}&tipo=in.(compra_credito,pago_compra)&select=id,fecha,tipo,descripcion,monto,cliente_id,vence,paga_id&limit=2000`),
+      leer(token, `movimientos?negocio_id=eq.${negocioId}&fecha=lt.${desde}&tipo=in.(compra_credito,pago_compra)&select=id,fecha,tipo,descripcion,proveedor,monto,cliente_id,vence,paga_id&limit=2000`),
     ]);
     const datos = armarDatos(negocio, movs, viejasPorPagar, saldos, mensual, hoy);
     const gj = await llamarGemini({

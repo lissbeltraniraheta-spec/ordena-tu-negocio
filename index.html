@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&display=swap">
-<link rel="stylesheet" href="/app.css?v=1795057814">
+<link rel="stylesheet" href="/app.css?v=1795057951">
 </head>
 <body>
 <div class="wrap">
@@ -99,6 +99,7 @@
       <div class="tabbar">
         <a href="#hoy" data-view="hoy">Movimientos del día</a>
         <a href="#fiados" data-view="fiados">Al crédito</a>
+        <a href="#compras" data-view="compras">Compras</a>
         <a href="#caja" data-view="caja">Cierre de caja</a>
         <a href="#archivo" data-view="archivo">Fotos y audios</a>
         <a href="#buscar" data-view="buscar">Consultar</a>
@@ -224,6 +225,55 @@
     </section>
 
     <!-- FIADOS -->
+    <section class="view" id="v-compras" hidden>
+      <div class="kpis">
+        <div class="kpi main compra"><span class="eyebrow">Comprado en <span id="cp-mes"></span></span><b class="num" id="cp-total">$0.00</b></div>
+        <div class="kpi"><span class="eyebrow">Al contado</span><b class="num" id="cp-contado">$0.00</b></div>
+        <div class="kpi"><span class="eyebrow">Al crédito</span><b class="num" id="cp-credito">$0.00</b></div>
+        <div class="kpi"><span class="eyebrow">Debe a proveedores</span><b class="num" id="cp-deuda">$0.00</b></div>
+      </div>
+      <div class="panel">
+        <div>
+          <h3>Anotar una compra</h3>
+          <p class="muted">Mercadería o producto que compró para vender.</p>
+        </div>
+        <form class="add" id="f-compra">
+          <fieldset class="full forma-pago">
+            <legend>¿Cómo la pagó?</legend>
+            <label><input type="radio" name="cp-forma" value="compra" checked><span><b>Al contado</b><small>Pagó en el momento. Se resta de la caja.</small></span></label>
+            <label><input type="radio" name="cp-forma" value="compra_credito"><span><b>Al crédito</b><small>La paga después. Le avisamos antes.</small></span></label>
+          </fieldset>
+          <label class="full" for="cp-prov">Proveedor (opcional)
+            <input id="cp-prov" list="dl-proveedores" maxlength="80" placeholder="Ej. Distribuidora El Sol" autocomplete="off">
+            <datalist id="dl-proveedores"></datalist>
+          </label>
+          <label class="full" for="cp-desc">Qué compró
+            <input id="cp-desc" maxlength="120" placeholder="Ej. 10 bolsas de cemento">
+          </label>
+          <label for="cp-monto">Monto (US$)
+            <input id="cp-monto" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0.00">
+          </label>
+          <label for="cp-fecha">Fecha de compra
+            <input id="cp-fecha" type="date">
+          </label>
+          <label class="full" for="cp-vence" id="l-cp-vence" hidden>Fecha para pagar
+            <input id="cp-vence" type="date">
+          </label>
+          <button class="btn primary full" type="submit" id="cp-guardar">Guardar compra al contado</button>
+          <p class="estado full" id="cp-st" role="status"></p>
+        </form>
+      </div>
+      <div class="panel alertas" id="cp-porpagar-box" hidden>
+        <h3>Por pagar a proveedores</h3>
+        <ul class="al-lista" id="cp-porpagar"></ul>
+      </div>
+      <div class="panel">
+        <h3>Compras de este mes</h3>
+        <ul class="list" id="cp-lista"></ul>
+        <p class="muted vacio" id="cp-vacio" hidden>Todavía no hay compras anotadas este mes.</p>
+      </div>
+    </section>
+
     <section class="view" id="v-fiados" hidden>
       <div class="kpis">
         <div class="kpi main"><span class="eyebrow">Le deben</span><b class="num" id="f-total">$0.00</b></div>
@@ -426,6 +476,6 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="/config.js"></script>
-<script src="/app.js?v=1795057814"></script>
+<script src="/app.js?v=1795057951"></script>
 </body>
 </html>

@@ -272,7 +272,7 @@ async function pintarAlertas() {
   const hoy = hoyLocal(), limite = masDias(hoy, DIAS_AVISO);
   const deudores = S.saldos.filter((c) => Number(c.saldo) > 0).map((c) => c.id);
   const [rc, rv] = await Promise.all([
-    sb.from("movimientos").select("id,fecha,descripcion,monto,vence").eq("negocio_id", S.negocio.id).eq("tipo", "compra_credito").order("fecha").limit(500),
+    sb.from("movimientos").select("id,fecha,descripcion,proveedor,monto,vence").eq("negocio_id", S.negocio.id).eq("tipo", "compra_credito").order("fecha").limit(500),
     deudores.length
       ? sb.from("movimientos").select("fecha,tipo,monto,vence,cliente_id,created_at").eq("negocio_id", S.negocio.id).in("cliente_id", deudores).in("tipo", ["fiado", "abono"]).order("fecha").limit(5000)
       : Promise.resolve({ data: [] }),
@@ -316,27 +316,105 @@ async function pintarAlertas() {
       <button class="btn small" type="button" data-ver-cliente="${x.cliente.id}">Cobrar</button></li>`;
   }).join("");
   $("al-pagar-box").hidden = !porPagar.length;
-  $("al-pagar").innerHTML = porPagar.map((c) => {
-    const [txt, cls] = etiquetaVence(c.vence, hoy);
-    return `<li><span class="al-tag ${cls}">${txt}</span><span class="desc">${esc(c.descripcion)}<small>${money(c.monto)} · comprado el ${fechaC2(c.fecha)}</small></span>
-      <button class="btn small" type="button" data-pagar="${c.id}">Ya lo pagué</button></li>`;
-  }).join("");
+  $("al-pagar").innerHTML = porPagar.map((c) => filaPorPagar(c, hoy)).join("");
   S.porPagar = porPagar;
+  if (!$("v-compras").hidden) pintarCompras();
+}
+const nombreCompra = (c) => (c.proveedor ? c.proveedor + " · " : "") + c.descripcion;
+function filaPorPagar(c, hoy) {
+  const [txt, cls] = etiquetaVence(c.vence, hoy);
+  return `<li><span class="al-tag ${cls}">${txt}</span><span class="desc">${esc(nombreCompra(c))}<small>${money(c.monto)} · comprado el ${fechaC2(c.fecha)}</small></span>
+      <button class="btn small" type="button" data-pagar="${c.id}">Ya lo pagué</button></li>`;
 }
 $("al-cobrar").addEventListener("click", (e) => {
   const b = e.target.closest("[data-ver-cliente]"); if (!b) return;
   location.hash = "fiados";
   setTimeout(() => { $("cl-filtro").value = b.dataset.verCliente; $("cl-buscar").value = ""; pintarFiados(); }, 50);
 });
-$("al-pagar").addEventListener("click", async (e) => {
+async function clicPagar(e) {
   const b = e.target.closest("[data-pagar]"); if (!b) return;
   const c = (S.porPagar || []).find((x) => x.id === b.dataset.pagar); if (!c) return;
   if (!b.classList.contains("confirm")) { b.classList.add("confirm"); b.textContent = `Anotar pago de ${money(c.monto)}`; return; }
   b.disabled = true;
-  const { error } = await sb.from("movimientos").insert({ negocio_id: S.negocio.id, fecha: hoyLocal(), tipo: "pago_compra", descripcion: ("Pago: " + c.descripcion).slice(0, 120), monto: c.monto, paga_id: c.id, origen: "manual" });
+  const { error } = await sb.from("movimientos").insert({ negocio_id: S.negocio.id, fecha: hoyLocal(), tipo: "pago_compra", descripcion: ("Pago: " + nombreCompra(c)).slice(0, 120), proveedor: c.proveedor || null, monto: c.monto, paga_id: c.id, origen: "manual" });
   if (error) { b.disabled = false; toast(traducirError(error)); return; }
   toast("Pago anotado. Se restó de la caja de hoy.");
   await cargarTodo();
+}
+$("al-pagar").addEventListener("click", clicPagar);
+
+/* ---------- Compras ---------- */
+function formaCompra() { return document.querySelector('input[name="cp-forma"]:checked')?.value || "compra"; }
+function prepararFormCompra() {
+  const credito = formaCompra() === "compra_credito";
+  $("l-cp-vence").hidden = !credito;
+  if (!$("cp-fecha").value) $("cp-fecha").value = hoyLocal();
+  $("cp-fecha").max = hoyLocal();
+  if (credito && !$("cp-vence").value) $("cp-vence").value = masDias($("cp-fecha").value, DIAS_CREDITO);
+  $("cp-guardar").textContent = credito ? "Guardar compra al crédito" : "Guardar compra al contado";
+}
+document.querySelectorAll('input[name="cp-forma"]').forEach((r) => r.addEventListener("change", prepararFormCompra));
+$("cp-fecha").addEventListener("change", () => { if (formaCompra() === "compra_credito") $("cp-vence").value = masDias($("cp-fecha").value || hoyLocal(), DIAS_CREDITO); });
+$("f-compra").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const tipo = formaCompra(), monto = Math.round(parseFloat($("cp-monto").value) * 100) / 100;
+  const descripcion = $("cp-desc").value.trim(), proveedor = $("cp-prov").value.trim().slice(0, 80) || null;
+  const fecha = /^\d{4}-\d{2}-\d{2}$/.test($("cp-fecha").value) ? $("cp-fecha").value : hoyLocal();
+  if (!descripcion) { setSt("cp-st", "Escriba qué compró.", "err"); $("cp-desc").focus(); return; }
+  if (!(monto > 0)) { setSt("cp-st", "Escriba el monto de la compra.", "err"); $("cp-monto").focus(); return; }
+  if (fecha > hoyLocal()) { setSt("cp-st", "La fecha de compra no puede ser después de hoy.", "err"); return; }
+  const vence = tipo === "compra_credito" ? (/^\d{4}-\d{2}-\d{2}$/.test($("cp-vence").value) ? $("cp-vence").value : masDias(fecha, DIAS_CREDITO)) : null;
+  const b = $("cp-guardar"); b.disabled = true;
+  const { error } = await sb.from("movimientos").insert({ negocio_id: S.negocio.id, fecha, tipo, descripcion, proveedor, monto, vence, origen: "manual" });
+  b.disabled = false;
+  if (error) { setSt("cp-st", traducirError(error), "err"); return; }
+  setSt("cp-st", `${TIPOS[tipo]} de ${money(monto)} guardada.${tipo === "compra" ? " Se restó de la caja de ese día." : " Le avisaremos antes de la fecha de pago."}`, "ok");
+  $("cp-desc").value = ""; $("cp-monto").value = ""; $("cp-vence").value = "";
+  prepararFormCompra();
+  await cargarTodo();
+  pintarCompras();
+});
+async function pintarCompras() {
+  prepararFormCompra();
+  const hoy = hoyLocal(), [ini, fin] = rangoMes(hoy), { m } = partes(hoy);
+  const { data, error } = await sb.from("movimientos").select("id,fecha,tipo,descripcion,proveedor,monto,vence")
+    .eq("negocio_id", S.negocio.id).in("tipo", ["compra", "compra_credito"]).gte("fecha", ini).lte("fecha", fin)
+    .order("fecha", { ascending: false }).order("created_at", { ascending: false }).limit(1000);
+  if (error) { toast(traducirError(error)); return; }
+  const lista = data || [], t = totales(lista), deuda = (S.porPagar || []).reduce((s, c) => s + Number(c.monto), 0);
+  $("cp-mes").textContent = MESES[m - 1];
+  $("cp-total").textContent = money(t.compra + t.compra_credito);
+  $("cp-contado").textContent = money(t.compra);
+  $("cp-credito").textContent = money(t.compra_credito);
+  $("cp-deuda").textContent = money(deuda);
+  // Proveedores ya usados, para sugerirlos
+  const { data: provs } = await sb.from("movimientos").select("proveedor").eq("negocio_id", S.negocio.id).not("proveedor", "is", null).limit(1000);
+  $("dl-proveedores").innerHTML = [...new Set((provs || []).map((x) => x.proveedor))].sort((a, b) => a.localeCompare(b, "es")).map((x) => `<option value="${esc(x)}"></option>`).join("");
+  // Por pagar
+  const pend = S.porPagar || [], pendIds = new Set(pend.map((c) => c.id));
+  $("cp-porpagar-box").hidden = !pend.length;
+  $("cp-porpagar").innerHTML = pend.map((c) => filaPorPagar(c, hoy)).join("");
+  // Compras del mes
+  $("cp-vacio").hidden = lista.length > 0;
+  $("cp-lista").innerHTML = lista.map((c) => {
+    const estado = c.tipo === "compra" ? "Pagada" : pendIds.has(c.id) ? "Pendiente · pagar el " + fechaC2(c.vence || masDias(c.fecha, DIAS_CREDITO)) : "Pagada";
+    return `<li><span class="chip c-${c.tipo}">${c.tipo === "compra" ? "Contado" : "Crédito"}</span>
+      <span class="desc">${esc(nombreCompra(c))}<small>${fechaC2(c.fecha)} · ${estado}</small></span>
+      <span class="amt">${money(c.monto)}</span>
+      <button class="del" type="button" data-borrar-compra="${c.id}" aria-label="Borrar ${esc(c.descripcion)}">×</button></li>`;
+  }).join("");
+}
+$("cp-porpagar").addEventListener("click", clicPagar);
+$("cp-lista").addEventListener("click", async (e) => {
+  const b = e.target.closest("[data-borrar-compra]"); if (!b) return;
+  if (!b.classList.contains("confirm")) {
+    document.querySelectorAll("#cp-lista .del.confirm").forEach((x) => { x.classList.remove("confirm"); x.textContent = "×"; });
+    b.classList.add("confirm"); b.textContent = "Borrar"; return;
+  }
+  const { error } = await sb.from("movimientos").delete().eq("id", b.dataset.borrarCompra);
+  if (error) { toast(traducirError(error)); return; }
+  toast("Compra borrada");
+  await cargarTodo(); pintarCompras();
 });
 
 /* ---------- Movimientos del día ---------- */
@@ -1168,7 +1246,7 @@ async function consultar() {
   const filas = [];
   try {
     for (let i = 0; i < MAX_CONSULTA / 1000; i++) {
-      let q = sb.from("movimientos").select("id,fecha,hora,tipo,descripcion,monto,vence,origen,cliente_id,clientes(nombre)")
+      let q = sb.from("movimientos").select("id,fecha,hora,tipo,descripcion,proveedor,monto,vence,origen,cliente_id,clientes(nombre)")
         .eq("negocio_id", S.negocio.id).gte("fecha", a).lte("fecha", b);
       if (GRUPOS_TIPO[tipo]) q = q.in("tipo", GRUPOS_TIPO[tipo]); else if (tipo) q = q.eq("tipo", tipo);
       if (cliente) q = q.eq("cliente_id", cliente);
@@ -1179,7 +1257,7 @@ async function consultar() {
     }
   } catch (err) { setSt("b-st", traducirError(err), "err"); return; }
   CONSULTA = palabras.length
-    ? filas.filter((m) => { const t = norm(m.descripcion + " " + (m.clientes?.nombre || "") + " " + TIPOS[m.tipo]); return palabras.every((p) => t.includes(p)); })
+    ? filas.filter((m) => { const t = norm(m.descripcion + " " + (m.proveedor || "") + " " + (m.clientes?.nombre || "") + " " + TIPOS[m.tipo]); return palabras.every((p) => t.includes(p)); })
     : filas;
   setSt("b-st", filas.length >= MAX_CONSULTA ? `Se muestran los primeros ${MAX_CONSULTA}. Elija menos días para ver todo.` : "");
   pintarConsulta(a, b);
@@ -1198,15 +1276,15 @@ function pintarConsulta(a, b) {
     const { y } = partes(f), anio = y !== partes(hoyLocal()).y ? ` de ${y}` : "";
     return `<p class="b-fecha">${fechaLarga(f)}${anio}</p><ul class="list">${lista.map((m) => {
       const neg = SALIDAS.includes(m.tipo) ? "−" : "";
-      const extra = [String(m.hora || "").slice(0, 5), m.clientes ? esc(m.clientes.nombre) : "", m.vence ? "pagar el " + fechaC2(m.vence) : ""].filter(Boolean).join(" · ");
+      const extra = [String(m.hora || "").slice(0, 5), m.clientes ? esc(m.clientes.nombre) : "", m.proveedor ? esc(m.proveedor) : "", m.vence ? "pagar el " + fechaC2(m.vence) : ""].filter(Boolean).join(" · ");
       return `<li><span class="chip c-${m.tipo}">${TIPOS[m.tipo]}</span><span class="desc">${esc(m.descripcion)}<small class="num">${extra}</small></span><span class="amt">${neg}${money(m.monto)}</span></li>`;
     }).join("")}</ul>`;
   }).join("");
 }
 $("b-csv").addEventListener("click", () => {
   const q = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-  const lineas = [["Fecha", "Hora", "Tipo", "Descripción", "Cliente", "Monto", "Fecha para pagar"].map(q).join(",")]
-    .concat(CONSULTA.map((m) => [m.fecha, String(m.hora || "").slice(0, 5), TIPOS[m.tipo], m.descripcion, m.clientes?.nombre || "", (SALIDAS.includes(m.tipo) ? -1 : 1) * Number(m.monto), m.vence || ""].map(q).join(",")));
+  const lineas = [["Fecha", "Hora", "Tipo", "Descripción", "Cliente", "Proveedor", "Monto", "Fecha para pagar"].map(q).join(",")]
+    .concat(CONSULTA.map((m) => [m.fecha, String(m.hora || "").slice(0, 5), TIPOS[m.tipo], m.descripcion, m.clientes?.nombre || "", m.proveedor || "", (SALIDAS.includes(m.tipo) ? -1 : 1) * Number(m.monto), m.vence || ""].map(q).join(",")));
   const blob = new Blob(["﻿" + lineas.join("\r\n")], { type: "text/csv;charset=utf-8" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob); a.download = `movimientos-${$("b-desde").value}-al-${$("b-hasta").value}.csv`;
@@ -1261,7 +1339,7 @@ $("f-ia").addEventListener("submit", async (e) => {
 });
 
 /* ---------- pestañas ---------- */
-const VISTAS = ["hoy", "fiados", "caja", "archivo", "buscar", "expediente"];
+const VISTAS = ["hoy", "fiados", "compras", "caja", "archivo", "buscar", "expediente"];
 function mostrarTab() {
   if ($("v-app").hidden || !S.negocio) return;
   const v = VISTAS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "hoy";
@@ -1269,6 +1347,7 @@ function mostrarTab() {
   document.querySelectorAll(".tabbar a").forEach((a) => { if (a.dataset.view === v) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current"); });
   if (v === "caja") pintarCaja();
   if (v === "archivo") pintarArchivo();
+  if (v === "compras") pintarCompras();
   if (v === "buscar") abrirConsulta();
   if (v === "expediente") pintarExpediente();
 }
