@@ -70,7 +70,7 @@ async function llamarGemini(payload, inicio) {
   throw new Error(`La IA no pudo leer el archivo: ${ultimo.msg}`);
 }
 const MAX_BYTES = 15 * 1024 * 1024;
-const TIPOS = ["contado", "fiado", "abono", "gasto", "retiro"];
+const TIPOS = ["contado", "fiado", "abono", "gasto", "retiro", "compra"];
 
 // Formatos que Gemini acepta tal cual; los demás se traducen al más cercano.
 const MIME_GEMINI = {
@@ -100,12 +100,13 @@ function instrucciones(tipo, clientes) {
     : "El audio es una nota de voz del dueño de un negocio pequeño en El Salvador contando lo que vendió, cobró o gastó.";
   return `${fuente}
 
-${tipo === "audio" ? "Primero transcribe el audio completo en español, tal como se dijo.\n" : ""}Convierte cada venta, abono, gasto o retiro en un movimiento. Los montos son en dólares (US$).
+${tipo === "audio" ? "Primero transcribe el audio completo en español, tal como se dijo.\n" : ""}Convierte cada venta, abono, compra, gasto o retiro en un movimiento. Los montos son en dólares (US$).
 Tipos:
 - "contado": venta pagada al momento.
 - "fiado": venta al crédito, fiada o apuntada a un cliente.
 - "abono": un cliente paga parte o todo lo que debe.
-- "gasto": pago del negocio (flete, luz, agua, compra de mercadería, sueldo).
+- "compra": mercadería o producto que el negocio compra a un proveedor para venderlo.
+- "gasto": otro pago del negocio (flete, luz, agua, alquiler, sueldo).
 - "retiro": dinero que el dueño saca para su casa o uso personal.
 Clientes conocidos del negocio: ${clientes.length ? clientes.join(", ") : "(ninguno todavía)"}.
 Si el nombre de un cliente coincide con uno conocido, usa ese nombre exacto; si es otro, escríbelo como aparece.
@@ -113,7 +114,7 @@ Si en una línea no se distingue el monto, no la incluyas y explícalo en "nota"
 Si ${tipo === "foto" ? "la imagen no es un cuaderno o lista de ventas" : "el audio no habla de ventas o pagos"}, devuelve "lineas" vacío y dilo en "nota".
 Responde solo con JSON con esta forma:
 {"transcripcion": ${tipo === "audio" ? '"texto del audio"' : "null"}, "lineas": [{"tipo": "fiado", "descripcion": "Cemento 2 bolsas", "monto": 19, "cliente": "Doña Rosa"}], "nota": ""}
-"cliente" es null en contado, gasto y retiro. "nota" es una frase corta en español o vacía.`;
+"cliente" es null en contado, compra, gasto y retiro. "nota" es una frase corta en español o vacía.`;
 }
 
 function limpiarResultado(r) {

@@ -12,7 +12,7 @@ const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const money = (n) => "$" + Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const money0 = (n) => "$" + Math.round(Number(n || 0)).toLocaleString("en-US");
-const TIPOS = { contado: "Contado", fiado: "Al crédito", abono: "Abono", gasto: "Gasto", retiro: "Retiro dueño" };
+const TIPOS = { contado: "Contado", fiado: "Al crédito", abono: "Abono", gasto: "Gasto", compra: "Compra", retiro: "Retiro dueño" };
 const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 const MESES_C = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 const DIAS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
@@ -246,7 +246,7 @@ function pintarSelectorCliente() {
   $("l-cliente-nuevo").hidden = sel.value !== "__nuevo";
 }
 function totales(lista) {
-  const t = { contado: 0, fiado: 0, abono: 0, gasto: 0, retiro: 0 };
+  const t = { contado: 0, fiado: 0, abono: 0, gasto: 0, retiro: 0, compra: 0 };
   (lista || S.movs).forEach((m) => { t[m.tipo] += Number(m.monto); });
   return t;
 }
@@ -257,13 +257,14 @@ function pintarHoy() {
   $("k-vendido").textContent = money(t.contado + t.fiado);
   $("k-contado").textContent = money(t.contado);
   $("k-fiado").textContent = money(t.fiado);
+  $("k-compras").textContent = money(t.compra);
   $("k-gastos").textContent = money(t.gasto);
   $("k-abonos").textContent = money(t.abono);
   $("t-movs").textContent = S.fecha === hoyLocal() ? "Movimientos de hoy" : "Movimientos del " + fechaLarga(S.fecha);
   $("n-movs").textContent = S.movs.length ? S.movs.length + " anotados" : "";
   $("movs-vacio").hidden = S.movs.length > 0;
   $("movs").innerHTML = S.movs.slice().reverse().map((m) => {
-    const neg = m.tipo === "gasto" || m.tipo === "retiro" ? "−" : "";
+    const neg = m.tipo === "gasto" || m.tipo === "retiro" || m.tipo === "compra" ? "−" : "";
     const origen = m.origen === "foto" ? " · foto" : m.origen === "audio" ? " · audio" : "";
     return `<li class="${m._nuevo ? "new" : ""}"><span class="chip c-${m.tipo}">${TIPOS[m.tipo]}</span>
       <span class="desc">${esc(m.descripcion)}<small class="num">${String(m.hora).slice(0, 5)}${m.clientes ? " · " + esc(m.clientes.nombre) : ""}${origen}</small></span>
@@ -741,12 +742,12 @@ async function pintarCaja() {
   if (!lista) return;
   const t = totales(lista);
   const inicial = Number(S.negocio.efectivo_inicial || 0);
-  const esperado = inicial + t.contado + t.abono - t.gasto - t.retiro;
+  const esperado = inicial + t.contado + t.abono - t.compra - t.gasto - t.retiro;
   S.esperado = esperado;
   $("t-caja").textContent = "Cierre de caja · " + textoRango(desde, hasta);
   $("b-cierre").textContent = varios ? `Guardar cierre de ${diasEntre(desde, hasta) + 1} días` : "Guardar cierre del día";
   $("c-inicial").value = inicial;
-  const filas = [["Efectivo con que se abrió", inicial], ["+ Ventas al contado", t.contado], ["+ Abonos de clientes", t.abono], ["− Gastos del negocio", -t.gasto], ["− Retiros del dueño", -t.retiro]];
+  const filas = [["Efectivo con que se abrió", inicial], ["+ Ventas al contado", t.contado], ["+ Abonos de clientes", t.abono], ["− Compras de mercadería", -t.compra], ["− Gastos del negocio", -t.gasto], ["− Retiros del dueño", -t.retiro]];
   $("cuadre").innerHTML = filas.map(([a, b]) => `<tr><td>${a}</td><td>${b < 0 ? "−" + money(-b) : money(b)}</td></tr>`).join("")
     + `<tr class="total"><td>Debe haber en la gaveta</td><td>${money(esperado)}</td></tr>`;
   S.cajaT = { inicial, ...t, desde, hasta };
@@ -775,21 +776,21 @@ async function pintarCaja() {
   const [inicioMes] = rangoMes(S.fecha);
   const { data, error } = await sb.from("resumen_mensual").select("tipo,total").eq("negocio_id", S.negocio.id).eq("mes", inicioMes);
   if (error) { toast(traducirError(error)); return; }
-  const m = { contado: 0, fiado: 0, abono: 0, gasto: 0, retiro: 0 };
+  const m = { contado: 0, fiado: 0, abono: 0, gasto: 0, retiro: 0, compra: 0 };
   (data || []).forEach((r) => { m[r.tipo] = Number(r.total); });
   const { m: mes } = partes(S.fecha);
   $("t-mes").textContent = "Resumen de " + MESES[mes - 1];
-  const entra = m.contado + m.abono, neto = entra - m.gasto;
-  $("mes").innerHTML = [["Ventas (contado + al crédito)", m.contado + m.fiado], ["Dinero que entró (contado + abonos)", entra], ["− Gastos del negocio", -m.gasto], ["− Retiros del dueño", -m.retiro]]
+  const entra = m.contado + m.abono, neto = entra - m.compra - m.gasto;
+  $("mes").innerHTML = [["Ventas (contado + al crédito)", m.contado + m.fiado], ["Dinero que entró (contado + abonos)", entra], ["− Compras de mercadería", -m.compra], ["− Gastos del negocio", -m.gasto], ["− Retiros del dueño", -m.retiro]]
     .map(([a, b]) => `<tr><td>${a}</td><td>${b < 0 ? "−" + money(-b) : money(b)}</td></tr>`).join("")
     + `<tr class="total"><td>Queda para el negocio</td><td>${money(neto - m.retiro)}</td></tr>`;
   const box = $("m-msg");
-  if (neto <= 0) { $("meter").innerHTML = ""; box.hidden = !(m.retiro > 0); box.className = "result bad"; box.textContent = "Este mes los gastos y retiros son mayores que lo que entró."; return; }
+  if (neto <= 0) { $("meter").innerHTML = ""; box.hidden = !(m.retiro > 0); box.className = "result bad"; box.textContent = "Este mes las compras, gastos y retiros son mayores que lo que entró."; return; }
   const pct = Math.min(100, (m.retiro / neto) * 100);
   $("meter").innerHTML = `<span style="width:${pct}%;background:var(--bad)"></span><span style="width:${100 - pct}%;background:var(--accent)"></span>`;
-  $("meter").setAttribute("aria-label", `Retiros ${Math.round(pct)}% de lo que quedó después de gastos`);
+  $("meter").setAttribute("aria-label", `Retiros ${Math.round(pct)}% de lo que quedó después de compras y gastos`);
   box.hidden = false;
-  if (m.retiro <= neto) { box.className = "result ok"; box.textContent = `El dueño se llevó el ${Math.round(pct)}% de lo que quedó después de gastos.`; }
+  if (m.retiro <= neto) { box.className = "result ok"; box.textContent = `El dueño se llevó el ${Math.round(pct)}% de lo que quedó después de compras y gastos.`; }
   else { box.className = "result bad"; box.textContent = `El dueño sacó ${money0(m.retiro - neto)} más de lo que quedó: se está comiendo el capital.`; }
 }
 function revisarCaja() {
@@ -808,7 +809,7 @@ $("b-cierre").addEventListener("click", async () => {
   const t = S.cajaT, b = $("b-cierre"); b.disabled = true;
   const fila = {
     negocio_id: S.negocio.id, fecha: t.hasta, fecha_desde: t.desde === t.hasta ? null : t.desde, efectivo_inicial: t.inicial, ventas_contado: t.contado, abonos: t.abono,
-    gastos: t.gasto, retiros: t.retiro, esperado: Math.round(S.esperado * 100) / 100, contado: Math.round(v * 100) / 100,
+    compras: t.compra, gastos: t.gasto, retiros: t.retiro, esperado: Math.round(S.esperado * 100) / 100, contado: Math.round(v * 100) / 100,
     diferencia: Math.round((v - S.esperado) * 100) / 100, updated_at: new Date().toISOString(),
   };
   const { error } = await sb.from("cierres").upsert(fila, { onConflict: "negocio_id,fecha" });
@@ -860,7 +861,7 @@ async function pintarHistorial() {
       filas.push(`<tr class="sin-cierre"><td>${rangoCorto(dia, dia)}</td><td colspan="3" class="muted">Incluido en el cierre del ${rangoCorto(dentro.fecha_desde, dentro.fecha)}</td></tr>`);
     } else {
       const t = totales((rm.data || []).filter((m) => m.fecha === dia));
-      const esperado = inicial + t.contado + t.abono - t.gasto - t.retiro;
+      const esperado = inicial + t.contado + t.abono - t.compra - t.gasto - t.retiro;
       filas.push(`<tr class="sin-cierre"><td>${rangoCorto(dia, dia)}</td><td>${money(esperado)}</td><td><span class="dif-bad">Sin cierre</span></td><td>—</td></tr>`);
     }
   }
@@ -930,7 +931,7 @@ function dibujarGrafico() {
   document.querySelectorAll("#exp-modelos button").forEach((btn) => btn.setAttribute("aria-pressed", String(btn.dataset.modelo === modeloGraf)));
   if (!EXP) return;
   const { meses, porDia, prom } = EXP, comparar = modeloGraf === "comparar";
-  meses.forEach((x) => (x.salidas = x.gasto + x.retiro));
+  meses.forEach((x) => (x.salidas = x.compra + x.gasto + x.retiro));
   const W = 640, x0 = 56, y0 = 30, base = 220;
   const max = Math.max(porDia ? 50 : 500, ...meses.map((x) => comparar ? Math.max(x.ventas, x.salidas) : x.ventas)) * 1.15;
   const paso = Math.pow(10, Math.floor(Math.log10(max / 3)));
@@ -967,20 +968,20 @@ function dibujarGrafico() {
     meses.forEach((x, i) => {
       const w = bw * 0.36, c = centro(i);
       s += `<rect x="${c - w}" y="${yy(x.ventas)}" width="${w}" height="${base - yy(x.ventas)}" rx="2" fill="var(--accent)"><title>${x.lbl} · ventas: ${money0(x.ventas)}</title></rect>`;
-      s += `<rect x="${c}" y="${yy(x.salidas)}" width="${w}" height="${base - yy(x.salidas)}" rx="2" fill="var(--bad)"><title>${x.lbl} · gastos y retiros: ${money0(x.salidas)}</title></rect>`;
+      s += `<rect x="${c}" y="${yy(x.salidas)}" width="${w}" height="${base - yy(x.salidas)}" rx="2" fill="var(--bad)"><title>${x.lbl} · compras, gastos y retiros: ${money0(x.salidas)}</title></rect>`;
       if (etiquetas && meses.length <= 6) {
         if (x.ventas > 0) s += valor(c - w / 2, yy(x.ventas), x.ventas, "var(--accent)");
         if (x.salidas > 0) s += valor(c + w / 2, yy(x.salidas), x.salidas, "var(--bad)");
       }
     });
     s += `<rect x="${x0}" y="6" width="12" height="12" rx="2" fill="var(--accent)"/><text x="${x0 + 18}" y="16" font-size="12" fill="var(--ink)">Ventas</text>`;
-    s += `<rect x="${x0 + 90}" y="6" width="12" height="12" rx="2" fill="var(--bad)"/><text x="${x0 + 108}" y="16" font-size="12" fill="var(--ink)">Gastos y retiros</text>`;
+    s += `<rect x="${x0 + 90}" y="6" width="12" height="12" rx="2" fill="var(--bad)"/><text x="${x0 + 108}" y="16" font-size="12" fill="var(--ink)">Compras, gastos y retiros</text>`;
   }
   $("chart").innerHTML = s;
   $("chart").setAttribute("aria-label", MODELOS_GRAF[modeloGraf] + (porDia ? " por día" : " por mes"));
   const tv = meses.reduce((a, x) => a + x.ventas, 0), ts = meses.reduce((a, x) => a + x.salidas, 0);
   const txt = modeloGraf === "comparar"
-    ? (tv - ts >= 0 ? `En este período vendió ${money(tv)} y salieron ${money(ts)} en gastos y retiros. Le quedaron ${money(tv - ts)}.` : `En este período salió más dinero (${money(ts)}) del que vendió (${money(tv)}).`)
+    ? (tv - ts >= 0 ? `En este período vendió ${money(tv)} y salieron ${money(ts)} en compras, gastos y retiros. Le quedaron ${money(tv - ts)}.` : `En este período salió más dinero (${money(ts)}) del que vendió (${money(tv)}).`)
     : modeloGraf === "linea" ? "La línea muestra si sus ventas suben o bajan con el tiempo."
     : `Cada barra es lo que vendió ${porDia ? "ese día" : "ese mes"}. La línea punteada es su promedio.`;
   $("exp-explica").textContent = txt;
@@ -1007,10 +1008,10 @@ async function pintarExpediente() {
   const meses = [];
   const pa = partes(a), pb = partes(b);
   if (porDia) {
-    for (let i = 0; i < dias; i++) { const d = new Date(pa.y, pa.m - 1, pa.d + i); meses.push({ key: fISO(d), lbl: String(d.getDate()), contado: 0, fiado: 0, abono: 0, gasto: 0, retiro: 0 }); }
+    for (let i = 0; i < dias; i++) { const d = new Date(pa.y, pa.m - 1, pa.d + i); meses.push({ key: fISO(d), lbl: String(d.getDate()), contado: 0, fiado: 0, abono: 0, gasto: 0, retiro: 0, compra: 0 }); }
   } else {
     const n = (pb.y - pa.y) * 12 + (pb.m - pa.m) + 1;
-    for (let i = 0; i < n; i++) { const d = new Date(pa.y, pa.m - 1 + i, 1); meses.push({ key: fISO(d).slice(0, 7), lbl: MESES_C[d.getMonth()], contado: 0, fiado: 0, abono: 0, gasto: 0, retiro: 0 }); }
+    for (let i = 0; i < n; i++) { const d = new Date(pa.y, pa.m - 1 + i, 1); meses.push({ key: fISO(d).slice(0, 7), lbl: MESES_C[d.getMonth()], contado: 0, fiado: 0, abono: 0, gasto: 0, retiro: 0, compra: 0 }); }
   }
   const idx = new Map(meses.map((x) => [x.key, x]));
   movs.forEach((r) => { const x = idx.get(porDia ? r.fecha : r.fecha.slice(0, 7)); if (x) x[r.tipo] += Number(r.monto); });
@@ -1021,7 +1022,7 @@ async function pintarExpediente() {
   EXP = { meses, porDia, prom };
   dibujarGrafico();
 
-  const tot = meses.reduce((a, x) => { ["ventas", "fiado", "abono", "gasto", "retiro"].forEach((k) => (a[k] += x[k])); return a; }, { ventas: 0, fiado: 0, abono: 0, gasto: 0, retiro: 0 });
+  const tot = meses.reduce((a, x) => { ["ventas", "fiado", "abono", "gasto", "retiro", "compra"].forEach((k) => (a[k] += x[k])); return a; }, { ventas: 0, fiado: 0, abono: 0, gasto: 0, retiro: 0, compra: 0 });
   const primero = conVentas[0], ultimo = conVentas[conVentas.length - 1];
   const crec = primero && ultimo && primero !== ultimo && primero.ventas > 0 ? ((ultimo.ventas / primero.ventas - 1) * 100) : null;
   $("exp-stats").innerHTML = [
@@ -1029,6 +1030,7 @@ async function pintarExpediente() {
     [porDia ? "Venta diaria promedio" : "Venta mensual promedio", money0(prom)],
     ["Crecimiento", crec === null ? "—" : (crec >= 0 ? "+" : "") + crec.toFixed(1) + "%"],
     ["Créditos recuperados", tot.fiado > 0 ? Math.round(Math.min(1, tot.abono / tot.fiado) * 100) + "%" : "—"],
+    ["Compras de mercadería", money0(tot.compra)],
     ["Gastos del negocio", money0(tot.gasto)],
     ["Retiros del dueño", money0(tot.retiro)],
   ].map(([a, b]) => `<div><span class="eyebrow">${a}</span><b class="num">${b}</b></div>`).join("");
