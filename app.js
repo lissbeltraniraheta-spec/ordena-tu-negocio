@@ -599,8 +599,6 @@ async function estadoDeCuenta(c, boton) {
   const nombre = c.nombre.split(" ").slice(0, 2).join(" ");
   const mny = (v) => (v < -0.004 ? `−${money(-v)}` : money(Math.abs(v)));
   const fechaC = (f) => { const { d, m, y } = partes(f); return `${d} ${MESES_C[m - 1]} ${y}`; };
-  const totComprado = movs.filter((m) => m.tipo === "fiado").reduce((s, m) => s + Number(m.monto), 0);
-  const totAbonado = movs.filter((m) => m.tipo === "abono").reduce((s, m) => s + Number(m.monto), 0);
   const saldo = Number(c.saldo);
   const visibles = movs.slice(-MAX_LINEAS_ESTADO);
   const deltaVisible = visibles.reduce((s, m) => s + (m.tipo === "fiado" ? 1 : -1) * Number(m.monto), 0);
@@ -611,8 +609,7 @@ async function estadoDeCuenta(c, boton) {
   visibles.forEach((m) => {
     const compra = m.tipo === "fiado";
     corrido = Math.round((corrido + (compra ? 1 : -1) * Number(m.monto)) * 100) / 100;
-    const det = compra ? `Compra: ${String(m.descripcion || "").slice(0, 40)}` : "Abono";
-    lineas.push(`• ${fechaC(m.fecha)} · ${det} · ${compra ? "+" : "−"}${money(m.monto)} → saldo ${mny(corrido)}`);
+    lineas.push(`• ${fechaC(m.fecha)} · ${compra ? "Compra" : "Abono"}: ${money(m.monto)}`);
   });
   const txt = [
     `Buenas, ${nombre}. Le saluda ${S.negocio.nombre}.`,
@@ -622,11 +619,13 @@ async function estadoDeCuenta(c, boton) {
     movs.length ? (movs.length > visibles.length ? `Últimos ${visibles.length} movimientos:` : `Movimientos:`) : `No tiene compras al crédito ni abonos registrados.`,
     ...lineas,
     ``,
-    `Total comprado al crédito: ${money(totComprado)}`,
-    `Total abonado: ${money(totAbonado)}`,
     saldo < -0.004 ? `*Saldo a su favor: ${money(-saldo)}*` : `*Saldo actual: ${money(saldo)}*`,
     ``,
-    saldo > 0.004 ? `Puede abonar en el negocio o por transferencia, lo que le quede mejor. Muchas gracias por su preferencia.` : `Su cuenta está al día. Muchas gracias por su preferencia.`,
+    saldo > 0.004 ? `Puede abonar en el negocio o por transferencia, lo que le quede mejor.` : `Su cuenta está al día.`,
+    ``,
+    `¿Desea que le enviemos la factura con el detalle de cada compra?`,
+    ``,
+    `Muchas gracias por su preferencia.`,
   ].join("\n");
   mostrarMensaje(c, "Estado de cuenta de " + c.nombre, txt);
 }
