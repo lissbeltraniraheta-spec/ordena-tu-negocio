@@ -11,12 +11,7 @@
   --mano:Caveat, "Comic Sans MS", cursive;
   color-scheme:light;
 }
-@media (prefers-color-scheme: dark){:root{
-  --bg:#0F1E36; --surface:#17294A; --ink:#F3EFE6; --muted:#C3CCDA; --line:#2E4268;
-  --brand:#8FB0E8; --on-brand:#0F1E36; --brand-soft:#22385E;
-  --accent:#5ED895; --accent-soft:#173A2C; --verde:#3CC77A; --amarillo:#F6C343;
-  --warn:#F6C343; --warn-soft:#3A2E12; --bad:#FF8A7E; --bad-soft:#3D1F24;
-  --sombra:0 8px 24px rgba(0,0,0,.45); color-scheme:dark}}
+/* La app se ve siempre en modo claro, aunque el teléfono esté en modo oscuro */
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 html{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
