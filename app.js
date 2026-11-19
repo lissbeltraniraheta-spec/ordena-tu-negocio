@@ -1146,6 +1146,7 @@ function ponerRango(r) {
 }
 function abrirConsulta() {
   const hoy = hoyLocal();
+  cargarPreguntas();
   $("b-desde").max = $("b-hasta").max = hoy;
   if (!$("b-desde").value) ponerRango("mes");
   const sel = $("b-cliente"), antes = sel.value;
@@ -1210,6 +1211,53 @@ $("b-csv").addEventListener("click", () => {
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob); a.download = `movimientos-${$("b-desde").value}-al-${$("b-hasta").value}.csv`;
   document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+});
+
+/* ---------- Pregúntele a la IA ---------- */
+const PREGUNTAS_POR_DIA = 5;
+function inicioDiaUTC() { const { y, m, d } = partes(hoyLocal()); return new Date(Date.UTC(y, m - 1, d, 6)).toISOString(); } // 00:00 en El Salvador
+function pintarQuedan(n) {
+  $("ia-quedan").textContent = n === 1 ? "Le queda 1 pregunta hoy" : `Le quedan ${n} preguntas hoy`;
+  $("ia-quedan").className = "chip ia-quedan " + (n > 0 ? "estado-ok" : "estado-30");
+  $("ia-enviar").disabled = n <= 0;
+  $("ia-pregunta").disabled = n <= 0;
+  $("ia-pregunta").placeholder = n > 0 ? "Escriba su pregunta…" : "Ya usó sus preguntas de hoy. Mañana puede preguntar de nuevo.";
+}
+const respuestaHTML = (p) => `<div class="ia-par"><p class="ia-q">${esc(p.pregunta)}</p><p class="ia-a">${esc(p.respuesta)}</p></div>`;
+async function cargarPreguntas() {
+  const { data, error } = await sb.from("preguntas_ia").select("pregunta,respuesta,created_at")
+    .eq("negocio_id", S.negocio.id).gte("created_at", inicioDiaUTC()).order("created_at", { ascending: false });
+  if (error) return;
+  pintarQuedan(Math.max(0, PREGUNTAS_POR_DIA - (data || []).length));
+  $("ia-respuestas").innerHTML = (data || []).map(respuestaHTML).join("");
+}
+$("ia-sugeridas").addEventListener("click", (e) => {
+  const b = e.target.closest("button"); if (!b || $("ia-pregunta").disabled) return;
+  $("ia-pregunta").value = b.textContent; $("ia-pregunta").focus();
+});
+$("ia-pregunta").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("f-ia").requestSubmit(); } });
+$("f-ia").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const pregunta = $("ia-pregunta").value.trim();
+  if (pregunta.length < 3) { setSt("ia-st", "Escriba su pregunta.", "err"); $("ia-pregunta").focus(); return; }
+  const b = $("ia-enviar"); b.disabled = true;
+  setSt("ia-st", "La IA está revisando sus datos… puede tardar unos segundos.");
+  try {
+    const { data: ses } = await sb.auth.getSession();
+    const r = await fetch("/api/preguntar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${ses.session?.access_token}` },
+      body: JSON.stringify({ negocio_id: S.negocio.id, pregunta }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { setSt("ia-st", j.error || "No se pudo responder. Intente de nuevo.", "err"); if (typeof j.quedan === "number") pintarQuedan(j.quedan); else b.disabled = false; return; }
+    setSt("ia-st", "");
+    $("ia-pregunta").value = "";
+    $("ia-respuestas").insertAdjacentHTML("afterbegin", respuestaHTML({ pregunta, respuesta: j.respuesta }));
+    pintarQuedan(j.quedan);
+  } catch (err) {
+    setSt("ia-st", "No se pudo conectar. Revise su internet e intente de nuevo.", "err"); b.disabled = false;
+  }
 });
 
 /* ---------- pestañas ---------- */

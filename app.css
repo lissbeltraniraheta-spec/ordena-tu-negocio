@@ -175,3 +175,16 @@ table.historial td[colspan]{white-space:normal;text-align:left}
 .b-fecha{margin:16px 0 2px;font-weight:700;font-size:.9rem;color:var(--muted);border-bottom:2px solid var(--line);padding-bottom:4px}
 #b-lista ul.list li{grid-template-columns:auto 1fr auto}
 .b-fecha::first-letter{text-transform:uppercase}
+
+/* Pregúntele a la IA */
+.ia-panel{border-color:var(--accent)}
+.ia-quedan{font-size:.72rem}
+.ia-sugeridas{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.ia-sugeridas .btn{text-align:left;font-weight:600;white-space:normal}
+.ia-form{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end}
+.ia-form textarea{width:100%;resize:vertical;min-height:48px;font:inherit;font-size:16px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--bg);color:var(--ink)}
+.ia-respuestas{display:grid;gap:10px;margin-top:6px}
+.ia-par{display:grid;gap:6px}
+.ia-q{justify-self:end;max-width:88%;margin:0;padding:8px 12px;border-radius:14px 14px 4px 14px;background:var(--accent);color:#fff;font-weight:600}
+.ia-a{justify-self:start;max-width:94%;margin:0;padding:10px 12px;border-radius:14px 14px 14px 4px;background:var(--accent-soft);color:var(--ink);white-space:pre-line;line-height:1.45}
+.ia-nota{font-size:.75rem;margin:10px 0 0}

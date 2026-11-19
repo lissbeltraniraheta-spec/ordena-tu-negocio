@@ -1,6 +1,7 @@
 {
   "functions": {
-    "api/procesar.js": { "maxDuration": 120 }
+    "api/procesar.js": { "maxDuration": 120 },
+    "api/preguntar.js": { "maxDuration": 60 }
   },
   "headers": [
     {

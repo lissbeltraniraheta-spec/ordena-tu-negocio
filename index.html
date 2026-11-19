@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&display=swap">
-<link rel="stylesheet" href="/app.css?v=1795057410">
+<link rel="stylesheet" href="/app.css?v=1795057814">
 </head>
 <body>
 <div class="wrap">
@@ -323,6 +323,27 @@
 
     <!-- CONSULTAR -->
     <section class="view" id="v-buscar" hidden>
+      <div class="panel ia-panel">
+        <div class="row between">
+          <h3>✨ Pregúntele a la IA</h3>
+          <span class="chip ia-quedan" id="ia-quedan"></span>
+        </div>
+        <p class="muted">Pregunte lo que quiera saber de su negocio. La IA responde con lo que usted ha anotado.</p>
+        <div class="ia-sugeridas" id="ia-sugeridas">
+          <button type="button" class="btn small">¿Cuánto vendí esta semana comparado con la pasada?</button>
+          <button type="button" class="btn small">¿Qué clientes me deben y desde cuándo?</button>
+          <button type="button" class="btn small">¿En qué gasté más este mes?</button>
+          <button type="button" class="btn small">¿Cuánto le debo a proveedores y cuándo vence?</button>
+        </div>
+        <form id="f-ia" class="ia-form">
+          <label class="vh" for="ia-pregunta">Su pregunta</label>
+          <textarea id="ia-pregunta" rows="2" maxlength="300" placeholder="Escriba su pregunta…"></textarea>
+          <button class="btn primary" type="submit" id="ia-enviar">Preguntar</button>
+        </form>
+        <p class="estado" id="ia-st" role="status"></p>
+        <div class="ia-respuestas" id="ia-respuestas" aria-live="polite"></div>
+        <p class="muted ia-nota">Puede hacer 5 preguntas al día por negocio. Revise los números importantes antes de tomar decisiones.</p>
+      </div>
       <div class="panel">
         <div>
           <h3>Consultar movimientos</h3>
@@ -405,6 +426,6 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="/config.js"></script>
-<script src="/app.js?v=1795057410"></script>
+<script src="/app.js?v=1795057814"></script>
 </body>
 </html>
