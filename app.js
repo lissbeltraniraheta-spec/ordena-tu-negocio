@@ -556,9 +556,13 @@ function pintarFiados() {
     + `<option value="__todos">Todos los clientes (${todos.length})</option>`
     + con.slice().sort((a, b) => a.nombre.localeCompare(b.nombre, "es")).map((c) => `<option value="${c.id}">${esc(c.nombre)} · ${money(c.saldo)}</option>`).join("");
   sel.value = [...sel.options].some((o) => o.value === antes) ? antes : "__deben";
-  const lista = sel.value === "__todos" ? todos : sel.value === "__deben" ? todos.filter((c) => Number(c.saldo) > 0) : todos.filter((c) => c.id === sel.value);
+  let lista = sel.value === "__todos" ? todos : sel.value === "__deben" ? todos.filter((c) => Number(c.saldo) > 0) : todos.filter((c) => c.id === sel.value);
+  // Búsqueda por nombre o apellido: cada palabra escrita debe aparecer en el nombre (sin importar tildes ni mayúsculas)
+  const palabras = norm($("cl-buscar").value).split(/\s+/).filter(Boolean);
+  if (palabras.length) lista = lista.filter((c) => { const n = norm(c.nombre); return palabras.every((p) => n.includes(p)); });
   $("cl-vacio").hidden = lista.length > 0;
-  $("cl-vacio").textContent = todos.length ? "Ningún cliente debe en este momento." : "Aún no hay clientes. Se crean solos al anotar una venta al crédito o un abono.";
+  $("cl-vacio").textContent = palabras.length ? `Ningún cliente coincide con «${$("cl-buscar").value.trim()}».`
+    : todos.length ? "Ningún cliente debe en este momento." : "Aún no hay clientes. Se crean solos al anotar una venta al crédito o un abono.";
   $("clientes").innerHTML = lista.map((c) => {
     const [txt, cls] = estadoCliente(c);
     return `<div class="cliente">
@@ -569,6 +573,7 @@ function pintarFiados() {
   }).join("");
 }
 $("cl-filtro").addEventListener("change", () => { $("p-msg").hidden = true; pintarFiados(); });
+$("cl-buscar").addEventListener("input", () => { $("p-msg").hidden = true; pintarFiados(); });
 $("clientes").addEventListener("click", (e) => {
   const b = e.target.closest("[data-cobro]"); if (!b) return;
   const c = S.saldos.find((x) => x.id === b.dataset.cobro);
