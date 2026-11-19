@@ -822,6 +822,58 @@ $("h-ultimos").addEventListener("click", () => { $("h-mes").value = ""; pintarHi
 const DIAS_HISTORIAL = 10;
 const sumarDias = (f, n) => { const { y, m, d } = partes(f); const x = new Date(y, m - 1, d + n); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`; };
 const celdaDif = (d) => Math.abs(d) < 0.01 ? `<span class="dif-ok">Cuadra</span>` : d > 0 ? `<span class="dif-ok">+${money(d)}</span>` : `<span class="dif-bad">−${money(-d)}</span>`;
+const DIAS_SEM = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+const estadoDif = (d) => Math.abs(d) < 0.01 ? "cuadra" : d > 0 ? "sobra" : "falta";
+let vistaHistorial = leerLocal("ordena:vista-historial") === "tabla" ? "tabla" : "grafico";
+function ponerVistaHistorial(v) {
+  vistaHistorial = v; guardarLocal("ordena:vista-historial", v);
+  $("h-grafico").hidden = v !== "grafico"; $("h-tabla").hidden = v !== "tabla";
+  $("h-ver-graf").setAttribute("aria-pressed", String(v === "grafico"));
+  $("h-ver-tabla").setAttribute("aria-pressed", String(v === "tabla"));
+}
+$("h-ver-graf").addEventListener("click", () => ponerVistaHistorial("grafico"));
+$("h-ver-tabla").addEventListener("click", () => ponerVistaHistorial("tabla"));
+ponerVistaHistorial(vistaHistorial);
+// Cada elemento: { dia, desde, esperado, contado, dif, estado: cuadra|sobra|falta|sin|incluido, en }
+function pintarHistorialVista(items, vacio) {
+  // Tabla
+  $("historial").innerHTML = items.map((it) => {
+    if (it.estado === "incluido") return `<tr class="sin-cierre"><td>${rangoCorto(it.dia, it.dia)}</td><td colspan="3" class="muted">Incluido en el cierre del ${rangoCorto(it.en.fecha_desde, it.en.fecha)}</td></tr>`;
+    if (it.estado === "sin") return `<tr class="sin-cierre"><td>${rangoCorto(it.dia, it.dia)}</td><td>${money(it.esperado)}</td><td><span class="dif-bad">Sin cierre</span></td><td>—</td></tr>`;
+    return `<tr><td>${rangoCorto(it.desde, it.dia)}</td><td>${money(it.esperado)}</td><td>${money(it.contado)}</td><td>${celdaDif(it.dif)}</td></tr>`;
+  }).join("");
+  $("h-vacio").hidden = !vacio;
+  $("h-grafico").classList.toggle("sin-datos", vacio);
+  // Gráfico: una tarjeta por día, de más antiguo a más reciente
+  const icono = { cuadra: "✓", sobra: "+", falta: "−", sin: "?", incluido: "•" };
+  const texto = (it) => it.estado === "cuadra" ? "Cuadró" : it.estado === "sobra" ? "+" + money(it.dif)
+    : it.estado === "falta" ? "−" + money(-it.dif) : it.estado === "sin" ? "Sin cierre" : `Junto al ${partes(it.en.fecha).d}`;
+  $("h-dias").innerHTML = items.slice().reverse().map((it) => {
+    const { y, m, d } = partes(it.dia); const dt = new Date(y, m - 1, d);
+    const varios = it.desde && it.desde !== it.dia ? `<span class="dia-varios">${rangoCorto(it.desde, it.dia)}</span>` : "";
+    const titulo = it.estado === "incluido" ? `Incluido en el cierre del ${rangoCorto(it.en.fecha_desde, it.en.fecha)}`
+      : it.estado === "sin" ? `Sin cierre. Debía haber ${money(it.esperado)}`
+      : `Debía haber ${money(it.esperado)}, contó ${money(it.contado)}`;
+    return `<div class="dia-card e-${it.estado}" title="${titulo}" aria-label="${fechaLarga(it.dia)}: ${titulo}">
+      <span class="dia-sem">${DIAS_SEM[dt.getDay()]}</span><span class="dia-num">${d} ${MESES_C[m - 1]}</span>
+      <span class="dia-icono" aria-hidden="true">${icono[it.estado]}</span><span class="dia-txt">${texto(it)}</span>${varios}</div>`;
+  }).join("");
+  // Resumen en palabras sencillas
+  const n = (e) => items.filter((it) => it.estado === e).length;
+  const cuadra = n("cuadra"), sobra = n("sobra"), falta = n("falta"), sin = n("sin");
+  const faltoTotal = items.filter((it) => it.estado === "falta").reduce((s, it) => s + -it.dif, 0);
+  const cerrados = cuadra + sobra + falta;
+  let frase;
+  if (vacio || !items.length) frase = "Todavía no hay cierres para mostrar.";
+  else if (!cerrados) frase = "Aún no ha hecho cierres en estos días. Al final del día, cuente el dinero y toque «Guardar cierre».";
+  else if (!falta) frase = `¡Muy bien! La caja cuadró en ${cerrados === 1 ? "el día" : `los ${cerrados} días`} que hizo cierre.`;
+  else frase = `Ojo: faltó dinero ${falta === 1 ? "1 día" : `${falta} días`} (en total ${money(faltoTotal)}). Revise si se anotó todo.`;
+  $("h-resumen").textContent = frase;
+  $("h-resumen").className = "h-resumen " + (falta ? "mal" : cerrados ? "bien" : "neutro");
+  const chip = (cls, num, txt) => num ? `<span class="h-chip e-${cls}"><b>${num}</b> ${txt}</span>` : "";
+  $("h-cuenta").innerHTML = chip("cuadra", cuadra, cuadra === 1 ? "cuadró" : "cuadraron") + chip("sobra", sobra, sobra === 1 ? "sobró" : "sobraron")
+    + chip("falta", falta, falta === 1 ? "faltó" : "faltaron") + chip("sin", sin, "sin cierre");
+}
 async function pintarHistorial() {
   const mes = $("h-mes").value;
   $("h-ultimos").hidden = !mes;
@@ -832,10 +884,9 @@ async function pintarHistorial() {
     const { data, error } = await sb.from("cierres").select("fecha,fecha_desde,esperado,contado,diferencia")
       .eq("negocio_id", S.negocio.id).gte("fecha", desde).lte("fecha", hasta).order("fecha", { ascending: false });
     if (error) { toast(traducirError(error)); return; }
-    const filas = data || [];
+    const items = (data || []).map((c) => ({ dia: c.fecha, desde: c.fecha_desde, esperado: Number(c.esperado), contado: Number(c.contado), dif: Number(c.diferencia), estado: estadoDif(Number(c.diferencia)) }));
     $("h-vacio").textContent = "No hay cierres guardados en este mes.";
-    $("h-vacio").hidden = filas.length > 0;
-    $("historial").innerHTML = filas.map((c) => `<tr><td>${rangoCorto(c.fecha_desde, c.fecha)}</td><td>${money(c.esperado)}</td><td>${money(c.contado)}</td><td>${celdaDif(Number(c.diferencia))}</td></tr>`).join("");
+    pintarHistorialVista(items, items.length === 0);
     return;
   }
   // Sin mes: siempre los últimos 10 días, con o sin cierre guardado
@@ -848,23 +899,22 @@ async function pintarHistorial() {
   if (rc.error || rm.error) { toast(traducirError(rc.error || rm.error)); return; }
   const cierres = rc.data || [];
   const inicial = Number(S.negocio.efectivo_inicial || 0);
-  const filas = [];
+  const items = [];
   for (let i = 0; i < DIAS_HISTORIAL; i++) {
     const dia = sumarDias(hasta, -i);
     const propio = cierres.find((c) => c.fecha === dia);
     const dentro = cierres.find((c) => c.fecha_desde && c.fecha_desde <= dia && c.fecha > dia);
     if (propio) {
-      filas.push(`<tr><td>${rangoCorto(propio.fecha_desde, propio.fecha)}</td><td>${money(propio.esperado)}</td><td>${money(propio.contado)}</td><td>${celdaDif(Number(propio.diferencia))}</td></tr>`);
+      const dif = Number(propio.diferencia);
+      items.push({ dia, desde: propio.fecha_desde, esperado: Number(propio.esperado), contado: Number(propio.contado), dif, estado: estadoDif(dif) });
     } else if (dentro) {
-      filas.push(`<tr class="sin-cierre"><td>${rangoCorto(dia, dia)}</td><td colspan="3" class="muted">Incluido en el cierre del ${rangoCorto(dentro.fecha_desde, dentro.fecha)}</td></tr>`);
+      items.push({ dia, estado: "incluido", en: dentro });
     } else {
       const t = totales((rm.data || []).filter((m) => m.fecha === dia));
-      const esperado = inicial + t.contado + t.abono - t.gasto - t.retiro;
-      filas.push(`<tr class="sin-cierre"><td>${rangoCorto(dia, dia)}</td><td>${money(esperado)}</td><td><span class="dif-bad">Sin cierre</span></td><td>—</td></tr>`);
+      items.push({ dia, esperado: inicial + t.contado + t.abono - t.gasto - t.retiro, estado: "sin" });
     }
   }
-  $("h-vacio").hidden = true;
-  $("historial").innerHTML = filas.join("");
+  pintarHistorialVista(items, false);
 }
 $("c-inicial").addEventListener("change", async (e) => {
   const v = Math.max(0, Number(e.target.value) || 0);
